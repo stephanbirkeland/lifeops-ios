@@ -1157,17 +1157,6 @@ struct CelebrationParticle: Identifiable {
     var opacity: Double
 }
 
-// MARK: - Streak Badge (keeping for compatibility)
-
-struct MaStreakBadge: View {
-    let count: Int
-    var isCompact: Bool = false
-
-    var body: some View {
-        MaAnimatedStreakBadge(count: count)
-    }
-}
-
 // MARK: - Flowing Item Model
 
 struct FlowingItem: Identifiable {
