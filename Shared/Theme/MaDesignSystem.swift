@@ -315,6 +315,75 @@ struct MaGradients {
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
+
+    // MARK: - Flowing Timeline Gradients
+
+    /// Timeline path gradient - subtle glow effect
+    static func timelinePath(colorScheme: ColorScheme) -> LinearGradient {
+        LinearGradient(
+            colors: [
+                MaColors.border.opacity(0.1),
+                MaColors.primaryLight.opacity(0.3),
+                MaColors.primaryLight.opacity(0.4),
+                MaColors.primaryLight.opacity(0.3),
+                MaColors.border.opacity(0.1)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    /// Timeline glow gradient for ambient effect
+    static func timelineGlow(intensity: CGFloat) -> LinearGradient {
+        LinearGradient(
+            colors: [
+                MaColors.primarySoft.opacity(0.0),
+                MaColors.primarySoft.opacity(0.1 + intensity * 0.05),
+                MaColors.primarySoft.opacity(0.15 + intensity * 0.05),
+                MaColors.primarySoft.opacity(0.1 + intensity * 0.05),
+                MaColors.primarySoft.opacity(0.0)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    /// Bubble border gradient
+    static func bubbleBorder(color: Color) -> LinearGradient {
+        LinearGradient(
+            colors: [
+                color.opacity(0.4),
+                color.opacity(0.2)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    /// Header fade gradient
+    static func headerFade(colorScheme: ColorScheme) -> LinearGradient {
+        LinearGradient(
+            colors: [
+                MaColors.background,
+                MaColors.background.opacity(0.95),
+                MaColors.background.opacity(0)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    /// Now indicator radial gradient
+    static let nowIndicator = RadialGradient(
+        colors: [
+            MaColors.primaryLight.opacity(0.3),
+            MaColors.primarySoft.opacity(0.1),
+            Color.clear
+        ],
+        center: .center,
+        startRadius: 5,
+        endRadius: 25
+    )
 }
 
 // MARK: - Ma Animation Timing
@@ -340,6 +409,35 @@ struct MaAnimation {
 
     /// Soft bounce for rewards
     static let reward = Animation.spring(response: 0.4, dampingFraction: 0.6)
+
+    // MARK: - Flowing Timeline Animations
+
+    /// Breathing animation for zen elements (4 seconds)
+    static let breathe = Animation.easeInOut(duration: 4).repeatForever(autoreverses: true)
+
+    /// Gentle floating motion (6 seconds)
+    static let float = Animation.easeInOut(duration: 6).repeatForever(autoreverses: true)
+
+    /// Particle flow animation
+    static let particleFlow = Animation.linear(duration: 20).repeatForever(autoreverses: false)
+
+    /// Bubble entrance spring
+    static let bubbleEntrance = Animation.spring(response: 0.5, dampingFraction: 0.8)
+
+    /// Bubble exit animation
+    static let bubbleExit = Animation.easeIn(duration: 0.3)
+
+    /// Celebration burst
+    static let celebration = Animation.spring(response: 0.3, dampingFraction: 0.6)
+
+    /// Shimmer effect
+    static let shimmer = Animation.linear(duration: 3)
+
+    /// Pulse for attention (2 seconds)
+    static let pulse = Animation.easeInOut(duration: 2).repeatForever(autoreverses: true)
+
+    /// Colon blink for clock display
+    static let clockBlink = Animation.easeInOut(duration: 1).repeatForever(autoreverses: true)
 }
 
 // MARK: - Ma Card Style
