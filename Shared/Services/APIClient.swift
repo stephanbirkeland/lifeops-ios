@@ -11,8 +11,8 @@ struct APIConfig {
         #if targetEnvironment(simulator)
         return "http://localhost:8000"
         #else
-        // For real device, use your local network IP or production URL
-        return UserDefaults.standard.string(forKey: "api_base_url") ?? "http://192.168.1.100:8000"
+        // For real device, use Tailscale IP to reach the backend
+        return UserDefaults.standard.string(forKey: "api_base_url") ?? "http://100.105.78.116:8000"
         #endif
     }
 

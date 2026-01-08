@@ -6,7 +6,7 @@ import SwiftUI
 
 // MARK: - Widget Entry
 
-struct TimelineEntry: TimelineEntry {
+struct MaTimelineEntry: TimelineEntry {
     let date: Date
     let items: [WidgetItem]
     let configuration: ConfigurationAppIntent
@@ -24,11 +24,11 @@ struct WidgetItem: Identifiable {
 // MARK: - Timeline Provider
 
 struct TimelineProvider: AppIntentTimelineProvider {
-    typealias Entry = TimelineEntry
+    typealias Entry = MaTimelineEntry
     typealias Intent = ConfigurationAppIntent
 
-    func placeholder(in context: Context) -> TimelineEntry {
-        TimelineEntry(
+    func placeholder(in context: Context) -> MaTimelineEntry {
+        MaTimelineEntry(
             date: Date(),
             items: [
                 WidgetItem(id: "1", title: "Morning Workout", icon: "figure.run", time: Date(), isOverdue: false, streak: 5),
@@ -38,9 +38,9 @@ struct TimelineProvider: AppIntentTimelineProvider {
         )
     }
 
-    func snapshot(for configuration: ConfigurationAppIntent, in context: Context) async -> TimelineEntry {
+    func snapshot(for configuration: ConfigurationAppIntent, in context: Context) async -> MaTimelineEntry {
         // Return sample data for widget gallery
-        TimelineEntry(
+        MaTimelineEntry(
             date: Date(),
             items: [
                 WidgetItem(id: "1", title: "Morning Workout", icon: "figure.run", time: Date(), isOverdue: false, streak: 5),
@@ -51,11 +51,11 @@ struct TimelineProvider: AppIntentTimelineProvider {
         )
     }
 
-    func timeline(for configuration: ConfigurationAppIntent, in context: Context) async -> Timeline<TimelineEntry> {
+    func timeline(for configuration: ConfigurationAppIntent, in context: Context) async -> Timeline<MaTimelineEntry> {
         // Fetch real data from API
         let items = await fetchTimelineItems()
 
-        let entry = TimelineEntry(
+        let entry = MaTimelineEntry(
             date: Date(),
             items: items,
             configuration: configuration
@@ -93,6 +93,8 @@ struct TimelineProvider: AppIntentTimelineProvider {
 
 // MARK: - Configuration Intent
 
+import AppIntents
+
 struct ConfigurationAppIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Timeline Widget"
     static var description = IntentDescription("Shows your upcoming timeline items.")
@@ -104,7 +106,7 @@ struct ConfigurationAppIntent: WidgetConfigurationIntent {
 // MARK: - Widget Views
 
 struct LifeOpsWidgetEntryView: View {
-    var entry: TimelineEntry
+    var entry: MaTimelineEntry
     @Environment(\.widgetFamily) var family
 
     var body: some View {
@@ -130,7 +132,7 @@ struct LifeOpsWidgetEntryView: View {
 // MARK: - Small Widget
 
 struct SmallWidgetView: View {
-    let entry: TimelineEntry
+    let entry: MaTimelineEntry
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -209,7 +211,7 @@ struct SmallWidgetView: View {
 // MARK: - Medium Widget
 
 struct MediumWidgetView: View {
-    let entry: TimelineEntry
+    let entry: MaTimelineEntry
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -263,7 +265,7 @@ struct MediumWidgetView: View {
 // MARK: - Large Widget
 
 struct LargeWidgetView: View {
-    let entry: TimelineEntry
+    let entry: MaTimelineEntry
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -378,7 +380,7 @@ struct WidgetItemRow: View {
 // MARK: - Lock Screen Widgets
 
 struct CircularWidgetView: View {
-    let entry: TimelineEntry
+    let entry: MaTimelineEntry
 
     var body: some View {
         ZStack {
@@ -401,7 +403,7 @@ struct CircularWidgetView: View {
 }
 
 struct RectangularWidgetView: View {
-    let entry: TimelineEntry
+    let entry: MaTimelineEntry
 
     var body: some View {
         if let item = entry.items.first {
@@ -438,7 +440,7 @@ struct RectangularWidgetView: View {
 }
 
 struct InlineWidgetView: View {
-    let entry: TimelineEntry
+    let entry: MaTimelineEntry
 
     var body: some View {
         if let item = entry.items.first {
@@ -487,7 +489,7 @@ struct LifeOpsTimelineWidget: Widget {
 #Preview("Small", as: .systemSmall) {
     LifeOpsTimelineWidget()
 } timeline: {
-    TimelineEntry(
+    MaTimelineEntry(
         date: Date(),
         items: [
             WidgetItem(id: "1", title: "Morning Workout", icon: "figure.run", time: Date(), isOverdue: false, streak: 5),
@@ -500,7 +502,7 @@ struct LifeOpsTimelineWidget: Widget {
 #Preview("Medium", as: .systemMedium) {
     LifeOpsTimelineWidget()
 } timeline: {
-    TimelineEntry(
+    MaTimelineEntry(
         date: Date(),
         items: [
             WidgetItem(id: "1", title: "Morning Workout", icon: "figure.run", time: Date(), isOverdue: true, streak: 5),
@@ -514,7 +516,7 @@ struct LifeOpsTimelineWidget: Widget {
 #Preview("Large", as: .systemLarge) {
     LifeOpsTimelineWidget()
 } timeline: {
-    TimelineEntry(
+    MaTimelineEntry(
         date: Date(),
         items: [
             WidgetItem(id: "1", title: "Morning Workout", icon: "figure.run", time: Date(), isOverdue: true, streak: 5),
@@ -530,7 +532,7 @@ struct LifeOpsTimelineWidget: Widget {
 #Preview("Empty", as: .systemMedium) {
     LifeOpsTimelineWidget()
 } timeline: {
-    TimelineEntry(
+    MaTimelineEntry(
         date: Date(),
         items: [],
         configuration: ConfigurationAppIntent()
