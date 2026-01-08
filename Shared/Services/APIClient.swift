@@ -7,13 +7,8 @@ import Foundation
 
 struct APIConfig {
     static var baseURL: String {
-        // Use localhost for simulator, configure for real device
-        #if targetEnvironment(simulator)
-        return "http://localhost:8000"
-        #else
-        // For real device, use Tailscale DNS to reach the backend on omarchy (Linux)
+        // Always use Tailscale URL - works from both simulator and device
         return UserDefaults.standard.string(forKey: "api_base_url") ?? "http://omarchy.tail51cc94.ts.net:8000"
-        #endif
     }
 
     static var accessToken: String? {
