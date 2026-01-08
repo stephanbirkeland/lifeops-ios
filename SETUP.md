@@ -35,24 +35,45 @@ Since the Swift files are created but not the Xcode project file, follow these s
    - Embed in Companion: `LifeOps`
    - Interface: **SwiftUI**
 
-### 3. Import Source Files
+### 3. Add Widget Extension
+
+1. File > New > Target
+2. Choose **Widget Extension** under iOS
+3. Settings:
+   - Product Name: `LifeOpsWidget`
+   - ✅ Include Configuration App Intent
+   - Embed in Application: `LifeOps`
+
+### 4. Configure App Group (for widget data sharing)
+
+1. Select `LifeOps` target > Signing & Capabilities
+2. Click `+ Capability` > App Groups
+3. Add group: `group.com.lifeops.app`
+4. Repeat for `LifeOpsWidget` target
+
+### 5. Import Source Files
 
 Replace the generated files with the ones in this repository:
 
 ```
 # iOS App
 LifeOps/
-  ├── LifeOpsApp.swift         (main app entry)
+  └── LifeOpsApp.swift           (main app entry)
 
 # Watch App
 LifeOpsWatch/
-  ├── LifeOpsWatchApp.swift    (watch entry)
-  └── WatchTimelineView.swift  (watch UI)
+  ├── LifeOpsWatchApp.swift      (watch entry)
+  └── WatchTimelineView.swift    (watch UI)
 
-# Shared Code (add to both targets)
+# Widget Extension
+LifeOpsWidget/
+  ├── LifeOpsWidget.swift        (widget views & provider)
+  └── WidgetAPIClient.swift      (simplified API client)
+
+# Shared Code (add to iOS + Watch targets)
 Shared/
   ├── Models/
-  │   └── TimelineModels.swift
+  │   └── TimelineModels.swift   (also add to Widget target)
   ├── Services/
   │   └── APIClient.swift
   └── Views/
@@ -139,6 +160,12 @@ docker-compose up -d lifeops-api
 - **Quick Timeline**: Most urgent items
 - **One-tap Complete**: Fast task completion
 - **Quick Postpone**: Defer to later
+
+### Home Screen Widgets
+- **Small Widget**: Next item with streak
+- **Medium Widget**: Up to 3 upcoming items
+- **Large Widget**: Full timeline view (6 items)
+- **Lock Screen**: Circular, rectangular, inline widgets
 
 ## Troubleshooting
 
