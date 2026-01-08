@@ -24,9 +24,12 @@ struct MaFlowingTimelineView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Background with subtle gradient
-                MaFlowingBackground()
-                    .ignoresSafeArea()
+                // Weather and time-aware background
+                MaWeatherTimeBackground(
+                    displayTime: viewModel.currentTime,
+                    weather: .clear  // TODO: Integrate with weather service
+                )
+                .ignoresSafeArea()
 
                 // Central timeline with gradient glow
                 MaEnhancedTimelinePath(screenHeight: geometry.size.height)
