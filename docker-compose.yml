@@ -1,0 +1,168 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # Core Infrastructure
+  # ============================================
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: lifeops-homeassistant
+    volumes:
+      - ./homeassistant:/config
+      - /run/dbus:/run/dbus:ro
+    environment:
+      - TZ=Europe/Oslo
+    network_mode: host
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+
+  esphome:
+    image: ghcr.io/esphome/esphome
+    container_name: lifeops-esphome
+    volumes:
+      - ./esphome:/config
+    environment:
+      - ESPHOME_DASHBOARD_USE_PING=true
+    network_mode: host
+    restart: unless-stopped
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: lifeops-mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    restart: unless-stopped
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: lifeops-timescaledb
+    environment:
+      POSTGRES_USER: lifeops
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-lifeops_dev_password}
+      POSTGRES_DB: lifeops
+    volumes:
+      - ./timescaledb/data:/var/lib/postgresql/data
+      - ./timescaledb/init:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lifeops -d lifeops"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # LifeOps Application
+  # ============================================
+
+  lifeops-api:
+    build:
+      context: ./services/api
+      dockerfile: Dockerfile
+    container_name: lifeops-api
+    environment:
+      - DATABASE_URL=postgresql://lifeops:${DB_PASSWORD:-lifeops_dev_password}@timescaledb:5432/lifeops
+      - STATS_SERVICE_URL=http://stats-api:8001
+      - MQTT_BROKER=mosquitto
+      - MQTT_PORT=1883
+      - OURA_CLIENT_ID=${OURA_CLIENT_ID:-}
+      - OURA_CLIENT_SECRET=${OURA_CLIENT_SECRET:-}
+      - OURA_ACCESS_TOKEN=${OURA_ACCESS_TOKEN:-}
+      - JWT_SECRET=${JWT_SECRET:-dev_jwt_secret_change_in_production}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./services/api:/app
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    restart: unless-stopped
+
+  # ============================================
+  # Stats Service (RPG Progression)
+  # ============================================
+
+  stats-db:
+    image: postgres:15
+    container_name: lifeops-stats-db
+    environment:
+      POSTGRES_USER: stats
+      POSTGRES_PASSWORD: ${STATS_DB_PASSWORD:-stats_dev_password}
+      POSTGRES_DB: stats
+    volumes:
+      - ./services/stats/data:/var/lib/postgresql/data
+      - ./services/stats/init:/docker-entrypoint-initdb.d
+    ports:
+      - "5433:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stats -d stats"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  stats-api:
+    build:
+      context: ./services/stats
+      dockerfile: Dockerfile
+    container_name: lifeops-stats-api
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://stats:${STATS_DB_PASSWORD:-stats_dev_password}@stats-db:5432/stats
+      - MQTT_BROKER=mosquitto
+      - MQTT_PORT=1883
+      - DEBUG=${DEBUG:-true}
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./services/stats/app:/app/app
+    depends_on:
+      stats-db:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    restart: unless-stopped
+
+  # ============================================
+  # Optional Services (use --profile)
+  # ============================================
+
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt
+    container_name: lifeops-zigbee2mqtt
+    volumes:
+      - ./zigbee2mqtt:/app/data
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    environment:
+      - TZ=Europe/Oslo
+    depends_on:
+      - mosquitto
+    restart: unless-stopped
+    profiles:
+      - zigbee
+
+  # Development tools
+  adminer:
+    image: adminer
+    container_name: lifeops-adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      - timescaledb
+    restart: unless-stopped
+    profiles:
+      - dev
+
+networks:
+  default:
+    name: lifeops-network

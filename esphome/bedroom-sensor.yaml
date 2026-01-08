@@ -1,0 +1,96 @@
+# Bedroom Multi-Sensor
+# ESP32-C3 Super Mini + BME280 + AM312 PIR
+# Purpose: Sleep environment monitoring, motion detection
+
+substitutions:
+  device_name: bedroom-sensor
+  friendly_name: "Bedroom Sensor"
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+# Include common configuration
+packages:
+  common: !include common.yaml
+
+# Deep sleep for battery optimization
+deep_sleep:
+  id: deep_sleep_control
+  run_duration: 30s
+  sleep_duration: 5min
+
+# I2C bus for BME280
+i2c:
+  sda: GPIO6
+  scl: GPIO7
+  scan: true
+
+sensor:
+  # BME280 Temperature/Humidity/Pressure
+  - platform: bme280_i2c
+    temperature:
+      name: "Bedroom Temperature"
+      id: bedroom_temp
+      oversampling: 2x
+      filters:
+        - offset: -1.0  # Calibration offset if needed
+    humidity:
+      name: "Bedroom Humidity"
+      id: bedroom_humidity
+      oversampling: 2x
+    pressure:
+      name: "Bedroom Pressure"
+      id: bedroom_pressure
+    address: 0x76
+    update_interval: 60s
+
+  # Battery voltage monitoring (if using LiPo)
+  - platform: adc
+    pin: GPIO0
+    name: "Bedroom Sensor Battery"
+    id: battery_voltage
+    update_interval: 60s
+    attenuation: 11db
+    filters:
+      - multiply: 2.0  # Voltage divider ratio
+    unit_of_measurement: "V"
+    accuracy_decimals: 2
+
+  # Battery percentage calculation
+  - platform: template
+    name: "Bedroom Sensor Battery Percent"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    lambda: |-
+      float voltage = id(battery_voltage).state;
+      // LiPo: 4.2V = 100%, 3.0V = 0%
+      float percent = (voltage - 3.0) / (4.2 - 3.0) * 100;
+      if (percent > 100) percent = 100;
+      if (percent < 0) percent = 0;
+      return percent;
+    update_interval: 60s
+
+binary_sensor:
+  # AM312 PIR Motion Sensor
+  - platform: gpio
+    pin:
+      number: GPIO4
+      mode: INPUT_PULLDOWN
+    name: "Bedroom Motion"
+    id: bedroom_motion
+    device_class: motion
+    filters:
+      - delayed_off: 30s  # Keep motion "on" for 30s after last trigger
+    on_press:
+      then:
+        - deep_sleep.prevent: deep_sleep_control
+    on_release:
+      then:
+        - delay: 60s
+        - deep_sleep.allow: deep_sleep_control

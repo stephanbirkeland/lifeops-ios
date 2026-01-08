@@ -1,0 +1,113 @@
+# Bedroom Button
+# ESP32-C3 Super Mini + Tactile Switch
+# Purpose: Bedside scene control
+
+substitutions:
+  device_name: bedroom-button
+  friendly_name: "Bedroom Button"
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+packages:
+  common: !include common.yaml
+
+# Deep sleep - wake on button press
+deep_sleep:
+  id: deep_sleep_control
+  run_duration: 10s
+  sleep_duration: 60min  # Long sleep - wake on GPIO interrupt
+  wakeup_pin:
+    number: GPIO4
+    allow_other_uses: true
+
+sensor:
+  # Battery voltage (CR2032)
+  - platform: adc
+    pin: GPIO0
+    name: "Bedroom Button Battery"
+    id: battery_voltage
+    update_interval: never
+    attenuation: 11db
+    filters:
+      - multiply: 2.0
+    unit_of_measurement: "V"
+
+  - platform: template
+    name: "Bedroom Button Battery Percent"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    lambda: |-
+      float voltage = id(battery_voltage).state;
+      float percent = (voltage - 2.5) / (3.0 - 2.5) * 100;
+      if (percent > 100) percent = 100;
+      if (percent < 0) percent = 0;
+      return percent;
+    update_interval: never
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO4
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Bedroom Button"
+    id: bedroom_button
+    filters:
+      - delayed_on: 50ms  # Debounce
+    on_multi_click:
+      # Single press - toggle bedroom lights
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at least 0.3s
+        then:
+          - component.update: battery_voltage
+          - homeassistant.event:
+              event: esphome.button_press
+              data:
+                button: bedroom
+                action: single
+
+      # Double press - goodnight scene
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at most 0.3s
+          - ON for at most 0.5s
+          - OFF for at least 0.2s
+        then:
+          - homeassistant.event:
+              event: esphome.button_press
+              data:
+                button: bedroom
+                action: double
+
+      # Triple press - morning routine
+      - timing:
+          - ON for at most 0.5s
+          - OFF for at most 0.3s
+          - ON for at most 0.5s
+          - OFF for at most 0.3s
+          - ON for at most 0.5s
+          - OFF for at least 0.2s
+        then:
+          - homeassistant.event:
+              event: esphome.button_press
+              data:
+                button: bedroom
+                action: triple
+
+      # Long press - all lights off
+      - timing:
+          - ON for at least 1s
+        then:
+          - homeassistant.event:
+              event: esphome.button_press
+              data:
+                button: bedroom
+                action: hold

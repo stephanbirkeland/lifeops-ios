@@ -1,0 +1,77 @@
+# Entry Door Sensor
+# ESP32-C3 Super Mini + Reed Switch
+# Purpose: Arrival/departure detection
+
+substitutions:
+  device_name: entry-door
+  friendly_name: "Entry Door"
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+packages:
+  common: !include common.yaml
+
+# Deep sleep - wake on door state change
+deep_sleep:
+  id: deep_sleep_control
+  run_duration: 10s
+  sleep_duration: 60min  # Long sleep - wake on GPIO interrupt
+  wakeup_pin:
+    number: GPIO4
+    allow_other_uses: true
+
+sensor:
+  # Battery voltage (CR2032 or LiPo)
+  - platform: adc
+    pin: GPIO0
+    name: "Entry Door Battery"
+    id: battery_voltage
+    update_interval: never  # Only read on wake
+    attenuation: 11db
+    filters:
+      - multiply: 2.0
+    unit_of_measurement: "V"
+
+  - platform: template
+    name: "Entry Door Battery Percent"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    lambda: |-
+      float voltage = id(battery_voltage).state;
+      // CR2032: 3.0V = 100%, 2.0V = 0%
+      // LiPo: 4.2V = 100%, 3.0V = 0%
+      float percent = (voltage - 2.5) / (3.0 - 2.5) * 100;  // Adjust for CR2032
+      if (percent > 100) percent = 100;
+      if (percent < 0) percent = 0;
+      return percent;
+    update_interval: never
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO4
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Entry Door"
+    id: entry_door
+    device_class: door
+    filters:
+      - delayed_on: 100ms   # Debounce
+      - delayed_off: 100ms
+    on_state:
+      then:
+        # Update battery reading on any state change
+        - component.update: battery_voltage
+        # Fire event for automations
+        - homeassistant.event:
+            event: esphome.door_event
+            data:
+              door: entry
+              state: !lambda 'return id(entry_door).state ? "open" : "closed";'

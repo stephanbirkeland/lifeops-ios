@@ -1,0 +1,71 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Secrets
+secrets.yaml
+*.pem
+*.key
+
+# Database data
+timescaledb/data/
+mosquitto/data/
+mosquitto/log/
+services/stats/data/
+
+# Home Assistant
+homeassistant/.storage/
+homeassistant/*.db
+homeassistant/*.log
+
+# ESPHome
+esphome/.esphome/
+
+# Zigbee2MQTT
+zigbee2mqtt/data/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+.eggs/
+*.egg-info/
+dist/
+build/
+
+# Node.js
+node_modules/
+.next/
+.nuxt/
+.cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/

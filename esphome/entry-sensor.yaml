@@ -1,0 +1,84 @@
+# Entry Multi-Sensor
+# ESP32-C3 Super Mini + BME280 + AM312 PIR
+# Purpose: Hallway lights, arrival detection (combined with door sensor)
+
+substitutions:
+  device_name: entry-sensor
+  friendly_name: "Entry Sensor"
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+packages:
+  common: !include common.yaml
+
+# Deep sleep for battery optimization
+deep_sleep:
+  id: deep_sleep_control
+  run_duration: 20s
+  sleep_duration: 2min  # Shorter sleep for entry area
+
+i2c:
+  sda: GPIO6
+  scl: GPIO7
+  scan: true
+
+sensor:
+  - platform: bme280_i2c
+    temperature:
+      name: "Entry Temperature"
+      id: entry_temp
+      oversampling: 2x
+    humidity:
+      name: "Entry Humidity"
+      oversampling: 2x
+    pressure:
+      name: "Entry Pressure"
+    address: 0x76
+    update_interval: 60s
+
+  - platform: adc
+    pin: GPIO0
+    name: "Entry Sensor Battery"
+    id: battery_voltage
+    update_interval: 60s
+    attenuation: 11db
+    filters:
+      - multiply: 2.0
+    unit_of_measurement: "V"
+
+  - platform: template
+    name: "Entry Sensor Battery Percent"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    lambda: |-
+      float voltage = id(battery_voltage).state;
+      float percent = (voltage - 3.0) / (4.2 - 3.0) * 100;
+      if (percent > 100) percent = 100;
+      if (percent < 0) percent = 0;
+      return percent;
+    update_interval: 60s
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO4
+      mode: INPUT_PULLDOWN
+    name: "Entry Motion"
+    id: entry_motion
+    device_class: motion
+    filters:
+      - delayed_off: 30s
+    on_press:
+      then:
+        - deep_sleep.prevent: deep_sleep_control
+    on_release:
+      then:
+        - delay: 60s
+        - deep_sleep.allow: deep_sleep_control
