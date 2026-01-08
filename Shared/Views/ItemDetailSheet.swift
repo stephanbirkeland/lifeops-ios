@@ -1,5 +1,7 @@
 // ItemDetailSheet.swift
-// Detail view with actions for a timeline item
+// Detail view with actions for a timeline item - Ma Design System
+//
+// Ma (間) - Thoughtful, calming detail experience
 
 import SwiftUI
 
@@ -7,53 +9,73 @@ struct ItemDetailSheet: View {
     let item: TimelineFeedItem
     @ObservedObject var viewModel: TimelineViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) var colorScheme
 
     @State private var showPostponeOptions = false
     @State private var showSkipConfirmation = false
     @State private var notes = ""
     @State private var quality: Int = 0
+    @State private var showCompletionCelebration = false
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Header
-                    ItemHeader(item: item)
+            ZStack {
+                // Background
+                MaColors.background
+                    .ignoresSafeArea()
 
-                    // Stats
-                    ItemStats(item: item)
+                ScrollView {
+                    VStack(spacing: MaSpacing.xl) {
+                        // Header
+                        MaItemHeader(item: item)
 
-                    Divider()
+                        // Stats
+                        MaItemStats(item: item)
 
-                    // Quick Actions
-                    QuickActions(
-                        onComplete: { completeItem() },
-                        onPostpone: { showPostponeOptions = true },
-                        onSkip: { showSkipConfirmation = true },
-                        isCompleted: item.status == .completed
-                    )
+                        // Divider with breathing room
+                        MaDivider()
 
-                    // Notes (for completion)
-                    if item.status != .completed {
-                        NotesSection(notes: $notes)
+                        // Quick Actions
+                        MaQuickActions(
+                            onComplete: { completeItem() },
+                            onPostpone: { showPostponeOptions = true },
+                            onSkip: { showSkipConfirmation = true },
+                            isCompleted: item.status == .completed
+                        )
+
+                        // Notes (for completion)
+                        if item.status != .completed {
+                            MaNotesSection(notes: $notes)
+                        }
+
+                        // Quality Rating
+                        if item.status != .completed {
+                            MaQualityRating(quality: $quality)
+                        }
+
+                        // Bottom breathing room
+                        Spacer()
+                            .frame(height: MaSpacing.xl)
                     }
-
-                    // Quality Rating
-                    if item.status != .completed {
-                        QualityRating(quality: $quality)
-                    }
+                    .padding(MaSpacing.lg)
                 }
-                .padding()
+
+                // Celebration overlay
+                if showCompletionCelebration {
+                    MaCompletionCelebration()
+                        .transition(.opacity.combined(with: .scale))
+                }
             }
             .navigationTitle(item.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
+                        .foregroundStyle(MaColors.primaryLight)
                 }
             }
             .sheet(isPresented: $showPostponeOptions) {
-                PostponeSheet(item: item, viewModel: viewModel) {
+                MaPostponeSheet(item: item, viewModel: viewModel) {
                     dismiss()
                 }
             }
@@ -65,16 +87,29 @@ struct ItemDetailSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(MaColors.background)
     }
 
     private func completeItem() {
+        // Show celebration briefly
+        withAnimation(MaAnimation.spring) {
+            showCompletionCelebration = true
+        }
+
         Task {
             await viewModel.completeItem(
                 item,
                 notes: notes.isEmpty ? nil : notes,
                 quality: quality > 0 ? quality : nil
             )
-            dismiss()
+
+            // Delay dismiss to show celebration
+            try? await Task.sleep(nanoseconds: 800_000_000)
+
+            await MainActor.run {
+                dismiss()
+            }
         }
     }
 
@@ -86,26 +121,32 @@ struct ItemDetailSheet: View {
     }
 }
 
-// MARK: - Item Header
+// MARK: - Ma Item Header
 
-struct ItemHeader: View {
+struct MaItemHeader: View {
     let item: TimelineFeedItem
+    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
-        VStack(spacing: 12) {
-            // Icon
+        VStack(spacing: MaSpacing.md) {
+            // Icon with soft background
             ZStack {
                 Circle()
-                    .fill(iconBackgroundColor)
-                    .frame(width: 80, height: 80)
+                    .fill(iconBackgroundGradient)
+                    .frame(width: 88, height: 88)
+                    .shadow(
+                        color: iconColor.opacity(colorScheme == .dark ? 0.3 : 0.2),
+                        radius: 12,
+                        y: 4
+                    )
 
                 if let icon = item.icon {
                     Image(systemName: icon)
-                        .font(.system(size: 36))
+                        .font(.system(size: 38))
                         .foregroundStyle(.white)
                 } else {
                     Image(systemName: "circle")
-                        .font(.system(size: 36))
+                        .font(.system(size: 38))
                         .foregroundStyle(.white)
                 }
             }
@@ -113,32 +154,46 @@ struct ItemHeader: View {
             // Description
             if let description = item.description {
                 Text(description)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                    .font(MaTypography.bodyMedium)
+                    .foregroundStyle(MaColors.textSecondary)
                     .multilineTextAlignment(.center)
+                    .padding(.horizontal, MaSpacing.md)
             }
 
             // Time info
             if let time = item.scheduledTime {
-                HStack {
+                HStack(spacing: MaSpacing.xs) {
                     Image(systemName: "clock")
+                        .foregroundStyle(MaColors.textTertiary)
+
                     Text(formatTimeString(time))
+                        .foregroundStyle(MaColors.textPrimary)
 
                     if let windowEnd = item.windowEnd {
-                        Text("(until \(formatTimeString(windowEnd)))")
-                            .foregroundStyle(.secondary)
+                        Text("-")
+                            .foregroundStyle(MaColors.textTertiary)
+                        Text(formatTimeString(windowEnd))
+                            .foregroundStyle(MaColors.textSecondary)
                     }
                 }
-                .font(.subheadline)
+                .font(MaTypography.bodySmall)
             }
 
             // Status badge
-            StatusBadge(status: item.status, isOverdue: item.isOverdue)
+            MaStatusBadge(status: item.status, isOverdue: item.isOverdue)
         }
     }
 
-    private var iconBackgroundColor: Color {
-        return .blue
+    private var iconColor: Color {
+        MaColors.statusColor(for: item.status, isOverdue: item.isOverdue)
+    }
+
+    private var iconBackgroundGradient: LinearGradient {
+        LinearGradient(
+            colors: [iconColor, iconColor.opacity(0.8)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 
     private func formatTimeString(_ timeStr: String) -> String {
@@ -153,23 +208,25 @@ struct ItemHeader: View {
     }
 }
 
-// MARK: - Status Badge
+// MARK: - Ma Status Badge
 
-struct StatusBadge: View {
+struct MaStatusBadge: View {
     let status: ItemStatus
     let isOverdue: Bool
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: MaSpacing.xxxs) {
             Image(systemName: icon)
             Text(text)
         }
-        .font(.caption)
-        .fontWeight(.medium)
+        .font(MaTypography.labelSmall)
         .foregroundStyle(.white)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(backgroundColor, in: Capsule())
+        .padding(.horizontal, MaSpacing.sm)
+        .padding(.vertical, MaSpacing.xxs)
+        .background(
+            Capsule()
+                .fill(backgroundColor)
+        )
     }
 
     private var icon: String {
@@ -197,178 +254,242 @@ struct StatusBadge: View {
     }
 
     private var backgroundColor: Color {
-        if isOverdue { return .red }
-        switch status {
-        case .pending: return .gray
-        case .active: return .blue
-        case .upcoming: return .secondary
-        case .completed: return .green
-        case .skipped: return .orange
-        case .postponed: return .purple
-        }
+        MaColors.statusColor(for: status, isOverdue: isOverdue)
     }
 }
 
-// MARK: - Item Stats
+// MARK: - Ma Item Stats
 
-struct ItemStats: View {
+struct MaItemStats: View {
     let item: TimelineFeedItem
+    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
-        HStack(spacing: 24) {
-            StatItem(
-                icon: "flame",
+        HStack(spacing: MaSpacing.md) {
+            MaStatCard(
+                icon: "flame.fill",
                 value: "\(item.currentStreak)",
                 label: "Streak",
-                color: .orange
+                color: MaColors.streak,
+                softColor: MaColors.secondarySoft
             )
 
-            StatItem(
-                icon: "trophy",
+            MaStatCard(
+                icon: "trophy.fill",
                 value: "\(item.bestStreak)",
                 label: "Best",
-                color: .yellow
+                color: MaColors.trophy,
+                softColor: MaColors.secondarySoft
             )
 
-            StatItem(
-                icon: "star.fill",
+            MaStatCard(
+                icon: "sparkles",
                 value: "+\(item.xpReward)",
                 label: "XP",
-                color: .purple
+                color: MaColors.xp,
+                softColor: MaColors.xpSoft
             )
         }
-        .padding()
+        .padding(MaSpacing.md)
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.secondarySystemGroupedBackground))
+            RoundedRectangle(cornerRadius: MaRadius.lg)
+                .fill(MaColors.backgroundSecondary)
+                .shadow(
+                    color: colorScheme == .dark ? .clear : .black.opacity(0.04),
+                    radius: 8,
+                    y: 2
+                )
         )
     }
 }
 
-struct StatItem: View {
+struct MaStatCard: View {
     let icon: String
     let value: String
     let label: String
     let color: Color
+    let softColor: Color
 
     var body: some View {
-        VStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(color)
+        VStack(spacing: MaSpacing.xs) {
+            ZStack {
+                Circle()
+                    .fill(softColor)
+                    .frame(width: 44, height: 44)
+
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundStyle(color)
+            }
 
             Text(value)
-                .font(.headline)
+                .font(MaTypography.statSmall)
+                .foregroundStyle(MaColors.textPrimary)
 
             Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(MaTypography.caption)
+                .foregroundStyle(MaColors.textSecondary)
         }
         .frame(maxWidth: .infinity)
     }
 }
 
-// MARK: - Quick Actions
+// MARK: - Ma Divider
 
-struct QuickActions: View {
+struct MaDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(MaColors.divider)
+            .frame(height: 1)
+            .padding(.horizontal, MaSpacing.lg)
+    }
+}
+
+// MARK: - Ma Quick Actions
+
+struct MaQuickActions: View {
     let onComplete: () -> Void
     let onPostpone: () -> Void
     let onSkip: () -> Void
     let isCompleted: Bool
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: MaSpacing.sm) {
             if !isCompleted {
-                // Complete button (primary)
+                // Complete button (primary - prominent)
                 Button(action: onComplete) {
                     Label("Complete", systemImage: "checkmark.circle.fill")
-                        .font(.headline)
+                        .font(MaTypography.labelLarge)
                         .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(.green)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding(.vertical, MaSpacing.md)
                 }
+                .buttonStyle(MaPrimaryButtonStyle(color: MaColors.complete))
 
-                HStack(spacing: 12) {
+                HStack(spacing: MaSpacing.sm) {
                     // Postpone button
                     Button(action: onPostpone) {
                         Label("Postpone", systemImage: "clock.arrow.circlepath")
-                            .font(.subheadline)
+                            .font(MaTypography.labelMedium)
                             .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color(.secondarySystemGroupedBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .padding(.vertical, MaSpacing.sm)
                     }
+                    .buttonStyle(MaSecondaryButtonStyle())
 
                     // Skip button
                     Button(action: onSkip) {
                         Label("Skip", systemImage: "forward")
-                            .font(.subheadline)
+                            .font(MaTypography.labelMedium)
                             .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color(.secondarySystemGroupedBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .padding(.vertical, MaSpacing.sm)
                     }
+                    .buttonStyle(MaSecondaryButtonStyle())
                 }
             } else {
                 // Already completed
-                Label("Completed!", systemImage: "checkmark.circle.fill")
-                    .font(.headline)
-                    .foregroundStyle(.green)
+                HStack(spacing: MaSpacing.xs) {
+                    Image(systemName: "checkmark.circle.fill")
+                    Text("Completed!")
+                }
+                .font(MaTypography.titleMedium)
+                .foregroundStyle(MaColors.complete)
+                .padding(.vertical, MaSpacing.md)
             }
         }
     }
 }
 
-// MARK: - Notes Section
+// MARK: - Ma Notes Section
 
-struct NotesSection: View {
+struct MaNotesSection: View {
     @Binding var notes: String
+    @FocusState private var isFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Notes (optional)")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: MaSpacing.xs) {
+            Text("Notes")
+                .font(MaTypography.labelMedium)
+                .foregroundStyle(MaColors.textSecondary)
 
-            TextField("Add notes...", text: $notes, axis: .vertical)
+            TextField("Add notes about this task...", text: $notes, axis: .vertical)
+                .font(MaTypography.bodyMedium)
                 .lineLimit(3...6)
-                .textFieldStyle(.roundedBorder)
+                .padding(MaSpacing.sm)
+                .background(
+                    RoundedRectangle(cornerRadius: MaRadius.sm)
+                        .fill(MaColors.backgroundTertiary)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: MaRadius.sm)
+                        .stroke(isFocused ? MaColors.primaryLight : .clear, lineWidth: 1)
+                )
+                .focused($isFocused)
         }
     }
 }
 
-// MARK: - Quality Rating
+// MARK: - Ma Quality Rating
 
-struct QualityRating: View {
+struct MaQualityRating: View {
     @Binding var quality: Int
+    @State private var hoveredRating: Int = 0
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("How did it go? (optional)")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: MaSpacing.xs) {
+            Text("How did it go?")
+                .font(MaTypography.labelMedium)
+                .foregroundStyle(MaColors.textSecondary)
 
-            HStack(spacing: 8) {
+            HStack(spacing: MaSpacing.sm) {
                 ForEach(1...5, id: \.self) { rating in
                     Button {
-                        quality = quality == rating ? 0 : rating
+                        withAnimation(MaAnimation.spring) {
+                            quality = quality == rating ? 0 : rating
+                        }
                     } label: {
                         Image(systemName: rating <= quality ? "star.fill" : "star")
                             .font(.title2)
-                            .foregroundStyle(rating <= quality ? .yellow : .gray)
+                            .foregroundStyle(
+                                rating <= quality
+                                    ? MaColors.trophy
+                                    : MaColors.textTertiary
+                            )
+                            .scaleEffect(rating <= quality ? 1.1 : 1.0)
                     }
+                    .buttonStyle(.plain)
+                }
+
+                Spacer()
+
+                if quality > 0 {
+                    Text(qualityLabel)
+                        .font(MaTypography.labelSmall)
+                        .foregroundStyle(MaColors.textSecondary)
+                        .transition(.opacity)
                 }
             }
-            .frame(maxWidth: .infinity)
+            .padding(MaSpacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: MaRadius.md)
+                    .fill(MaColors.backgroundTertiary)
+            )
+        }
+    }
+
+    private var qualityLabel: String {
+        switch quality {
+        case 1: return "Struggled"
+        case 2: return "Okay"
+        case 3: return "Good"
+        case 4: return "Great"
+        case 5: return "Perfect!"
+        default: return ""
         }
     }
 }
 
-// MARK: - Postpone Sheet
+// MARK: - Ma Postpone Sheet
 
-struct PostponeSheet: View {
+struct MaPostponeSheet: View {
     let item: TimelineFeedItem
     @ObservedObject var viewModel: TimelineViewModel
     let onDismiss: () -> Void
@@ -377,35 +498,92 @@ struct PostponeSheet: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section("Quick Options") {
-                    ForEach(PostponeTarget.allCases.filter { $0 != .custom }, id: \.self) { target in
-                        Button {
-                            postponeTo(target)
-                        } label: {
-                            Label(target.displayName, systemImage: target.icon)
-                        }
-                    }
-                }
+            ZStack {
+                MaColors.background
+                    .ignoresSafeArea()
 
-                Section("Custom") {
-                    Button {
-                        // TODO: Show date/time picker
-                        postponeTo(.tomorrow)
-                    } label: {
-                        Label("Pick date & time...", systemImage: "calendar.badge.clock")
+                List {
+                    Section {
+                        ForEach(PostponeTarget.allCases.filter { $0 != .custom }, id: \.self) { target in
+                            Button {
+                                postponeTo(target)
+                            } label: {
+                                HStack(spacing: MaSpacing.sm) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(MaColors.postponeSoft)
+                                            .frame(width: 36, height: 36)
+
+                                        Image(systemName: target.icon)
+                                            .font(.body)
+                                            .foregroundStyle(MaColors.postpone)
+                                    }
+
+                                    Text(target.displayName)
+                                        .font(MaTypography.bodyMedium)
+                                        .foregroundStyle(MaColors.textPrimary)
+
+                                    Spacer()
+
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundStyle(MaColors.textTertiary)
+                                }
+                                .padding(.vertical, MaSpacing.xxs)
+                            }
+                        }
+                    } header: {
+                        Text("Quick Options")
+                            .font(MaTypography.labelSmall)
+                            .foregroundStyle(MaColors.textSecondary)
                     }
+                    .listRowBackground(MaColors.backgroundSecondary)
+
+                    Section {
+                        Button {
+                            // TODO: Show date/time picker
+                            postponeTo(.tomorrow)
+                        } label: {
+                            HStack(spacing: MaSpacing.sm) {
+                                ZStack {
+                                    Circle()
+                                        .fill(MaColors.primarySoft)
+                                        .frame(width: 36, height: 36)
+
+                                    Image(systemName: "calendar.badge.clock")
+                                        .font(.body)
+                                        .foregroundStyle(MaColors.primaryLight)
+                                }
+
+                                Text("Pick date & time...")
+                                    .font(MaTypography.bodyMedium)
+                                    .foregroundStyle(MaColors.textPrimary)
+
+                                Spacer()
+                            }
+                            .padding(.vertical, MaSpacing.xxs)
+                        }
+                    } header: {
+                        Text("Custom")
+                            .font(MaTypography.labelSmall)
+                            .foregroundStyle(MaColors.textSecondary)
+                    }
+                    .listRowBackground(MaColors.backgroundSecondary)
                 }
+                .scrollContentBackground(.hidden)
             }
             .navigationTitle("Postpone")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
+                        .foregroundStyle(MaColors.textSecondary)
                 }
             }
         }
         .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(MaColors.background)
     }
 
     private func postponeTo(_ target: PostponeTarget) {
@@ -413,6 +591,48 @@ struct PostponeSheet: View {
             await viewModel.postponeItem(item, target: target)
             dismiss()
             onDismiss()
+        }
+    }
+}
+
+// MARK: - Ma Completion Celebration
+
+struct MaCompletionCelebration: View {
+    @State private var scale: CGFloat = 0.5
+    @State private var opacity: Double = 0
+
+    var body: some View {
+        ZStack {
+            // Semi-transparent background
+            Color.black.opacity(0.3)
+                .ignoresSafeArea()
+
+            VStack(spacing: MaSpacing.md) {
+                // Animated checkmark
+                ZStack {
+                    Circle()
+                        .fill(MaGradients.success)
+                        .frame(width: 120, height: 120)
+
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 56, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                .scaleEffect(scale)
+
+                Text("Well done!")
+                    .font(MaTypography.titleLarge)
+                    .foregroundStyle(.white)
+                    .opacity(opacity)
+            }
+        }
+        .onAppear {
+            withAnimation(MaAnimation.reward) {
+                scale = 1.0
+            }
+            withAnimation(MaAnimation.smooth.delay(0.2)) {
+                opacity = 1.0
+            }
         }
     }
 }

@@ -1,8 +1,11 @@
 // LifeOpsWidget.swift
-// Home screen widget for LifeOps timeline
+// Home screen widget for Ma timeline - Ma Design System
+//
+// Ma (間) - A glance of calm amidst the day
 
 import WidgetKit
 import SwiftUI
+import AppIntents
 
 // MARK: - Widget Entry
 
@@ -39,7 +42,6 @@ struct TimelineProvider: AppIntentTimelineProvider {
     }
 
     func snapshot(for configuration: ConfigurationAppIntent, in context: Context) async -> MaTimelineEntry {
-        // Return sample data for widget gallery
         MaTimelineEntry(
             date: Date(),
             items: [
@@ -52,7 +54,6 @@ struct TimelineProvider: AppIntentTimelineProvider {
     }
 
     func timeline(for configuration: ConfigurationAppIntent, in context: Context) async -> Timeline<MaTimelineEntry> {
-        // Fetch real data from API
         let items = await fetchTimelineItems()
 
         let entry = MaTimelineEntry(
@@ -61,18 +62,14 @@ struct TimelineProvider: AppIntentTimelineProvider {
             configuration: configuration
         )
 
-        // Refresh every 15 minutes
         let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: Date())!
 
         return Timeline(entries: [entry], policy: .after(nextUpdate))
     }
 
     private func fetchTimelineItems() async -> [WidgetItem] {
-        // Try to fetch from API
         do {
             let feed = try await WidgetAPIClient.shared.getTimeline()
-
-            // Get all items from feed (overdue computed, plus active/upcoming)
             let allItems = feed.items.filter { $0.status == .active || $0.status == .upcoming || $0.isOverdue }
             return allItems.prefix(5).map { item in
                 WidgetItem(
@@ -85,7 +82,6 @@ struct TimelineProvider: AppIntentTimelineProvider {
                 )
             }
         } catch {
-            // Return empty on error
             return []
         }
     }
@@ -96,7 +92,6 @@ struct TimelineProvider: AppIntentTimelineProvider {
         formatter.dateFormat = "HH:mm:ss"
         guard let time = formatter.date(from: timeStr) else { return nil }
 
-        // Combine with today's date
         let calendar = Calendar.current
         let now = Date()
         return calendar.date(
@@ -110,14 +105,65 @@ struct TimelineProvider: AppIntentTimelineProvider {
 
 // MARK: - Configuration Intent
 
-import AppIntents
-
 struct ConfigurationAppIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource = "Timeline Widget"
-    static var description = IntentDescription("Shows your upcoming timeline items.")
+    static var title: LocalizedStringResource = "Ma Timeline"
+    static var description = IntentDescription("Your timeline at a glance.")
 
     @Parameter(title: "Show Streaks", default: true)
     var showStreaks: Bool
+}
+
+// MARK: - Widget Ma Colors (for Widget context)
+
+struct WidgetMaColors {
+    // Adaptive colors for widgets
+    static let primary = Color(light: Color(hex: "7EB8DA"), dark: Color(hex: "5BA3C9"))
+    static let complete = Color(light: Color(hex: "8FBC8F"), dark: Color(hex: "6B9B6B"))
+    static let overdue = Color(light: Color(hex: "E88B8B"), dark: Color(hex: "D47A7A"))
+    static let streak = Color(light: Color(hex: "F5A855"), dark: Color(hex: "E89845"))
+    static let xp = Color(light: Color(hex: "A68BC8"), dark: Color(hex: "9678B8"))
+
+    static let background = Color(light: Color(hex: "FAF8F5"), dark: Color(hex: "1A1918"))
+    static let backgroundSecondary = Color(light: Color(hex: "FFFFFF"), dark: Color(hex: "252423"))
+
+    static let textPrimary = Color(light: Color(hex: "2D2A26"), dark: Color(hex: "F5F3F0"))
+    static let textSecondary = Color(light: Color(hex: "6B6560"), dark: Color(hex: "A8A5A0"))
+    static let textTertiary = Color(light: Color(hex: "A8A5A0"), dark: Color(hex: "6B6560"))
+}
+
+// Color extension for widget (supports light/dark)
+extension Color {
+    init(light: Color, dark: Color) {
+        self.init(uiColor: UIColor { traitCollection in
+            traitCollection.userInterfaceStyle == .dark
+                ? UIColor(dark)
+                : UIColor(light)
+        })
+    }
+
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3:
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6:
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8:
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: Double(a) / 255
+        )
+    }
 }
 
 // MARK: - Widget Views
@@ -129,37 +175,39 @@ struct LifeOpsWidgetEntryView: View {
     var body: some View {
         switch family {
         case .systemSmall:
-            SmallWidgetView(entry: entry)
+            MaSmallWidgetView(entry: entry)
         case .systemMedium:
-            MediumWidgetView(entry: entry)
+            MaMediumWidgetView(entry: entry)
         case .systemLarge:
-            LargeWidgetView(entry: entry)
+            MaLargeWidgetView(entry: entry)
         case .accessoryCircular:
-            CircularWidgetView(entry: entry)
+            MaCircularWidgetView(entry: entry)
         case .accessoryRectangular:
-            RectangularWidgetView(entry: entry)
+            MaRectangularWidgetView(entry: entry)
         case .accessoryInline:
-            InlineWidgetView(entry: entry)
+            MaInlineWidgetView(entry: entry)
         default:
-            MediumWidgetView(entry: entry)
+            MaMediumWidgetView(entry: entry)
         }
     }
 }
 
 // MARK: - Small Widget
 
-struct SmallWidgetView: View {
+struct MaSmallWidgetView: View {
     let entry: MaTimelineEntry
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Header
-            HStack {
-                Image(systemName: "list.bullet.clipboard")
-                    .foregroundStyle(.blue)
-                Text("Timeline")
+            HStack(spacing: 4) {
+                Image(systemName: "leaf")
+                    .font(.caption)
+                    .foregroundStyle(WidgetMaColors.primary)
+                Text("Ma")
                     .font(.caption)
                     .fontWeight(.semibold)
+                    .foregroundStyle(WidgetMaColors.textPrimary)
             }
 
             Spacer()
@@ -170,37 +218,40 @@ struct SmallWidgetView: View {
                     HStack(spacing: 4) {
                         if item.isOverdue {
                             Circle()
-                                .fill(.red)
-                                .frame(width: 8, height: 8)
+                                .fill(WidgetMaColors.overdue)
+                                .frame(width: 6, height: 6)
                         }
                         Text(item.title)
                             .font(.subheadline)
                             .fontWeight(.medium)
+                            .foregroundStyle(WidgetMaColors.textPrimary)
                             .lineLimit(2)
                     }
 
                     if let time = item.time {
                         Text(formatTime(time))
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(WidgetMaColors.textSecondary)
                     }
 
                     if item.streak > 0 {
                         HStack(spacing: 2) {
                             Image(systemName: "flame.fill")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(WidgetMaColors.streak)
                             Text("\(item.streak)")
+                                .foregroundStyle(WidgetMaColors.streak)
                         }
                         .font(.caption2)
                     }
                 }
             } else {
-                VStack {
+                VStack(spacing: 4) {
                     Image(systemName: "checkmark.circle")
-                        .font(.title2)
-                        .foregroundStyle(.green)
-                    Text("All done!")
-                        .font(.caption)
+                        .font(.title3)
+                        .foregroundStyle(WidgetMaColors.complete)
+                    Text("All clear")
+                        .font(.caption2)
+                        .foregroundStyle(WidgetMaColors.textSecondary)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -211,11 +262,11 @@ struct SmallWidgetView: View {
             if entry.items.count > 1 {
                 Text("+\(entry.items.count - 1) more")
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(WidgetMaColors.textTertiary)
             }
         }
         .padding()
-        .containerBackground(.fill.tertiary, for: .widget)
+        .containerBackground(WidgetMaColors.background, for: .widget)
     }
 
     private func formatTime(_ date: Date) -> String {
@@ -227,36 +278,40 @@ struct SmallWidgetView: View {
 
 // MARK: - Medium Widget
 
-struct MediumWidgetView: View {
+struct MaMediumWidgetView: View {
     let entry: MaTimelineEntry
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Header
             HStack {
-                Image(systemName: "list.bullet.clipboard")
-                    .foregroundStyle(.blue)
-                Text("Timeline")
-                    .font(.headline)
+                HStack(spacing: 4) {
+                    Image(systemName: "leaf")
+                        .foregroundStyle(WidgetMaColors.primary)
+                    Text("Ma Timeline")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(WidgetMaColors.textPrimary)
+                }
+                .font(.subheadline)
 
                 Spacer()
 
-                Text(entry.items.isEmpty ? "All done!" : "\(entry.items.count) items")
+                Text(entry.items.isEmpty ? "All clear" : "\(entry.items.count) items")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(WidgetMaColors.textSecondary)
             }
 
             if entry.items.isEmpty {
                 Spacer()
                 HStack {
                     Spacer()
-                    VStack {
+                    VStack(spacing: 6) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.largeTitle)
-                            .foregroundStyle(.green)
-                        Text("Nothing pending")
+                            .font(.title)
+                            .foregroundStyle(WidgetMaColors.complete)
+                        Text("Take a breath")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(WidgetMaColors.textSecondary)
                     }
                     Spacer()
                 }
@@ -264,64 +319,74 @@ struct MediumWidgetView: View {
             } else {
                 // Show up to 3 items
                 ForEach(entry.items.prefix(3)) { item in
-                    WidgetItemRow(item: item, showStreak: entry.configuration.showStreaks)
+                    MaWidgetItemRow(item: item, showStreak: entry.configuration.showStreaks)
                 }
 
                 if entry.items.count > 3 {
                     Text("+\(entry.items.count - 3) more")
                         .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(WidgetMaColors.textTertiary)
                 }
             }
         }
         .padding()
-        .containerBackground(.fill.tertiary, for: .widget)
+        .containerBackground(WidgetMaColors.background, for: .widget)
     }
 }
 
 // MARK: - Large Widget
 
-struct LargeWidgetView: View {
+struct MaLargeWidgetView: View {
     let entry: MaTimelineEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             // Header
             HStack {
-                Image(systemName: "list.bullet.clipboard")
-                    .foregroundStyle(.blue)
-                Text("Timeline")
-                    .font(.headline)
+                HStack(spacing: 6) {
+                    Image(systemName: "leaf")
+                        .foregroundStyle(WidgetMaColors.primary)
+                    Text("Ma Timeline")
+                        .fontWeight(.semibold)
+                        .foregroundStyle(WidgetMaColors.textPrimary)
+                }
+                .font(.headline)
 
                 Spacer()
 
                 Text(Date(), style: .time)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(WidgetMaColors.textSecondary)
             }
 
-            Divider()
+            Rectangle()
+                .fill(WidgetMaColors.textTertiary.opacity(0.3))
+                .frame(height: 1)
 
             if entry.items.isEmpty {
                 Spacer()
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.green)
-                    Text("All caught up!")
-                        .font(.title3)
-                    Text("No pending items")
+                        .font(.system(size: 44))
+                        .foregroundStyle(WidgetMaColors.complete)
+                    Text("All caught up")
+                        .font(.headline)
+                        .foregroundStyle(WidgetMaColors.textPrimary)
+                    Text("This is your Ma")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(WidgetMaColors.textSecondary)
                 }
                 .frame(maxWidth: .infinity)
                 Spacer()
             } else {
                 // Show up to 6 items
                 ForEach(entry.items.prefix(6)) { item in
-                    WidgetItemRow(item: item, showStreak: entry.configuration.showStreaks)
+                    MaWidgetItemRow(item: item, showStreak: entry.configuration.showStreaks)
+
                     if item.id != entry.items.prefix(6).last?.id {
-                        Divider()
+                        Rectangle()
+                            .fill(WidgetMaColors.textTertiary.opacity(0.2))
+                            .frame(height: 1)
                     }
                 }
 
@@ -330,19 +395,19 @@ struct LargeWidgetView: View {
                 if entry.items.count > 6 {
                     Text("+\(entry.items.count - 6) more items")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(WidgetMaColors.textTertiary)
                         .frame(maxWidth: .infinity)
                 }
             }
         }
         .padding()
-        .containerBackground(.fill.tertiary, for: .widget)
+        .containerBackground(WidgetMaColors.background, for: .widget)
     }
 }
 
 // MARK: - Widget Item Row
 
-struct WidgetItemRow: View {
+struct MaWidgetItemRow: View {
     let item: WidgetItem
     let showStreak: Bool
 
@@ -350,20 +415,21 @@ struct WidgetItemRow: View {
         HStack(spacing: 8) {
             // Status indicator
             Circle()
-                .fill(item.isOverdue ? .red : .blue)
+                .fill(item.isOverdue ? WidgetMaColors.overdue : WidgetMaColors.primary)
                 .frame(width: 8, height: 8)
 
             // Icon
             if let icon = item.icon {
                 Image(systemName: icon)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(WidgetMaColors.textSecondary)
                     .frame(width: 16)
             }
 
             // Title
             Text(item.title)
                 .font(.subheadline)
+                .foregroundStyle(WidgetMaColors.textPrimary)
                 .lineLimit(1)
 
             Spacer()
@@ -372,7 +438,7 @@ struct WidgetItemRow: View {
             if let time = item.time {
                 Text(formatTime(time))
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(WidgetMaColors.textSecondary)
             }
 
             // Streak
@@ -382,7 +448,7 @@ struct WidgetItemRow: View {
                     Text("\(item.streak)")
                 }
                 .font(.caption2)
-                .foregroundStyle(.orange)
+                .foregroundStyle(WidgetMaColors.streak)
             }
         }
     }
@@ -396,7 +462,7 @@ struct WidgetItemRow: View {
 
 // MARK: - Lock Screen Widgets
 
-struct CircularWidgetView: View {
+struct MaCircularWidgetView: View {
     let entry: MaTimelineEntry
 
     var body: some View {
@@ -411,7 +477,7 @@ struct CircularWidgetView: View {
                     Text("\(entry.items.count)")
                         .font(.title2)
                         .fontWeight(.bold)
-                    Text("todo")
+                    Text("tasks")
                         .font(.caption2)
                 }
             }
@@ -419,13 +485,13 @@ struct CircularWidgetView: View {
     }
 }
 
-struct RectangularWidgetView: View {
+struct MaRectangularWidgetView: View {
     let entry: MaTimelineEntry
 
     var body: some View {
         if let item = entry.items.first {
             HStack {
-                VStack(alignment: .leading) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(item.title)
                         .font(.headline)
                         .lineLimit(1)
@@ -450,20 +516,20 @@ struct RectangularWidgetView: View {
             HStack {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
-                Text("All done!")
+                Text("All clear")
             }
         }
     }
 }
 
-struct InlineWidgetView: View {
+struct MaInlineWidgetView: View {
     let entry: MaTimelineEntry
 
     var body: some View {
         if let item = entry.items.first {
-            Text("\(entry.items.count) items • \(item.title)")
+            Text("\(entry.items.count) tasks | \(item.title)")
         } else {
-            Text("All done!")
+            Text("All clear")
         }
     }
 }
@@ -478,7 +544,7 @@ struct LifeOpsWidgetBundle: WidgetBundle {
 }
 
 struct LifeOpsTimelineWidget: Widget {
-    let kind: String = "LifeOpsTimeline"
+    let kind: String = "MaTimeline"
 
     var body: some WidgetConfiguration {
         AppIntentConfiguration(
@@ -488,8 +554,8 @@ struct LifeOpsTimelineWidget: Widget {
         ) { entry in
             LifeOpsWidgetEntryView(entry: entry)
         }
-        .configurationDisplayName("Timeline")
-        .description("See your upcoming tasks at a glance.")
+        .configurationDisplayName("Ma Timeline")
+        .description("Your timeline at a glance.")
         .supportedFamilies([
             .systemSmall,
             .systemMedium,

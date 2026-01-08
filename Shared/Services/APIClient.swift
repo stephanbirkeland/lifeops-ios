@@ -11,8 +11,8 @@ struct APIConfig {
         #if targetEnvironment(simulator)
         return "http://localhost:8000"
         #else
-        // For real device, use Tailscale IP to reach the backend
-        return UserDefaults.standard.string(forKey: "api_base_url") ?? "http://100.105.78.116:8000"
+        // For real device, use Tailscale DNS to reach the backend on omarchy (Linux)
+        return UserDefaults.standard.string(forKey: "api_base_url") ?? "http://omarchy.tail51cc94.ts.net:8000"
         #endif
     }
 

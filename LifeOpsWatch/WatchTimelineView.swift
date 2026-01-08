@@ -1,5 +1,7 @@
 // WatchTimelineView.swift
-// Simplified timeline view for Apple Watch
+// Simplified timeline view for Apple Watch - Ma Design System
+//
+// Ma (間) - Calm, focused experience on the wrist
 
 import SwiftUI
 
@@ -10,32 +12,79 @@ struct WatchTimelineView: View {
         NavigationStack {
             Group {
                 if viewModel.isLoading {
-                    ProgressView("Loading...")
+                    WatchLoadingView()
                 } else if viewModel.items.isEmpty {
-                    VStack(spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.largeTitle)
-                            .foregroundStyle(.green)
-                        Text("All done!")
-                            .font(.headline)
-                    }
+                    WatchEmptyView()
                 } else {
-                    List {
-                        ForEach(viewModel.items) { item in
-                            NavigationLink(value: item) {
-                                WatchItemRow(item: item)
-                            }
-                        }
-                    }
+                    WatchTimelineList(items: viewModel.items, viewModel: viewModel)
                 }
             }
             .navigationTitle("Timeline")
-            .navigationDestination(for: TimelineFeedItem.self) { item in
-                WatchItemDetail(item: item, viewModel: viewModel)
-            }
         }
         .task {
             await viewModel.loadTimeline()
+        }
+    }
+}
+
+// MARK: - Watch Loading View
+
+struct WatchLoadingView: View {
+    var body: some View {
+        VStack(spacing: 8) {
+            ProgressView()
+                .tint(WatchMaColors.primary)
+            Text("Loading...")
+                .font(.caption)
+                .foregroundStyle(WatchMaColors.textSecondary)
+        }
+    }
+}
+
+// MARK: - Watch Empty View
+
+struct WatchEmptyView: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(WatchMaColors.completeSoft)
+                    .frame(width: 48, height: 48)
+
+                Image(systemName: "checkmark")
+                    .font(.title2)
+                    .fontWeight(.medium)
+                    .foregroundStyle(WatchMaColors.complete)
+            }
+
+            Text("All done!")
+                .font(.headline)
+                .foregroundStyle(WatchMaColors.textPrimary)
+
+            Text("Take a breath")
+                .font(.caption2)
+                .foregroundStyle(WatchMaColors.textSecondary)
+        }
+    }
+}
+
+// MARK: - Watch Timeline List
+
+struct WatchTimelineList: View {
+    let items: [TimelineFeedItem]
+    @ObservedObject var viewModel: WatchTimelineViewModel
+
+    var body: some View {
+        List {
+            ForEach(items) { item in
+                NavigationLink(value: item) {
+                    WatchItemRow(item: item)
+                }
+                .listRowBackground(WatchMaColors.backgroundSecondary)
+            }
+        }
+        .navigationDestination(for: TimelineFeedItem.self) { item in
+            WatchItemDetail(item: item, viewModel: viewModel)
         }
     }
 }
@@ -47,7 +96,7 @@ struct WatchItemRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            // Status dot
+            // Status dot with color
             Circle()
                 .fill(statusColor)
                 .frame(width: 8, height: 8)
@@ -55,41 +104,49 @@ struct WatchItemRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .font(.headline)
+                    .foregroundStyle(WatchMaColors.textPrimary)
                     .lineLimit(1)
 
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     if let time = item.scheduledTime {
-                        Text(formatTime(time))
+                        Text(formatTimeString(time))
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(WatchMaColors.textSecondary)
                     }
 
                     if item.currentStreak > 0 {
                         HStack(spacing: 2) {
                             Image(systemName: "flame.fill")
+                                .foregroundStyle(WatchMaColors.streak)
                             Text("\(item.currentStreak)")
+                                .foregroundStyle(WatchMaColors.streak)
                         }
                         .font(.caption2)
-                        .foregroundStyle(.orange)
                     }
                 }
             }
         }
+        .padding(.vertical, 4)
     }
 
     private var statusColor: Color {
-        if item.isOverdue { return .red }
+        if item.isOverdue { return WatchMaColors.overdue }
         switch item.status {
-        case .active: return .blue
-        case .completed: return .green
-        default: return .gray
+        case .active: return WatchMaColors.primary
+        case .completed: return WatchMaColors.complete
+        default: return WatchMaColors.textTertiary
         }
     }
 
-    private func formatTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+    private func formatTimeString(_ timeStr: String) -> String {
+        let inputFormatter = DateFormatter()
+        inputFormatter.dateFormat = "HH:mm:ss"
+        guard let date = inputFormatter.date(from: timeStr) else {
+            return timeStr
+        }
+        let outputFormatter = DateFormatter()
+        outputFormatter.timeStyle = .short
+        return outputFormatter.string(from: date)
     }
 }
 
@@ -103,26 +160,49 @@ struct WatchItemDetail: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                // Icon
+                // Icon with status color
                 if let icon = item.icon {
-                    Image(systemName: icon)
-                        .font(.largeTitle)
-                        .foregroundStyle(iconColor)
+                    ZStack {
+                        Circle()
+                            .fill(iconColor.opacity(0.2))
+                            .frame(width: 56, height: 56)
+
+                        Image(systemName: icon)
+                            .font(.title2)
+                            .foregroundStyle(iconColor)
+                    }
                 }
 
                 // Title
                 Text(item.title)
                     .font(.headline)
+                    .foregroundStyle(WatchMaColors.textPrimary)
                     .multilineTextAlignment(.center)
 
-                // Streak
+                // Streak badge
                 if item.currentStreak > 0 {
-                    HStack {
+                    HStack(spacing: 4) {
                         Image(systemName: "flame.fill")
                         Text("\(item.currentStreak) day streak")
                     }
                     .font(.caption)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(WatchMaColors.streak)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(WatchMaColors.streak.opacity(0.2))
+                    )
+                }
+
+                // XP reward
+                if item.xpReward > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                        Text("+\(item.xpReward) XP")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(WatchMaColors.xp)
                 }
 
                 Divider()
@@ -134,15 +214,17 @@ struct WatchItemDetail: View {
                         completeItem()
                     } label: {
                         Label("Done", systemImage: "checkmark")
+                            .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
-                    .tint(.green)
+                    .tint(WatchMaColors.complete)
 
                     // Quick Postpone
                     Button {
                         postponeItem(.afterWork)
                     } label: {
                         Label("Later", systemImage: "clock")
+                            .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
 
@@ -151,23 +233,31 @@ struct WatchItemDetail: View {
                         skipItem()
                     } label: {
                         Label("Skip", systemImage: "forward")
+                            .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
                 } else {
-                    Label("Completed!", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                        Text("Completed!")
+                    }
+                    .foregroundStyle(WatchMaColors.complete)
+                    .font(.headline)
                 }
             }
             .padding()
         }
         .navigationTitle("Details")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var iconColor: Color {
-        if let colorName = item.color {
-            return Color(colorName)
+        if item.isOverdue { return WatchMaColors.overdue }
+        switch item.status {
+        case .active: return WatchMaColors.primary
+        case .completed: return WatchMaColors.complete
+        default: return WatchMaColors.textSecondary
         }
-        return .blue
     }
 
     private func completeItem() {
@@ -189,6 +279,60 @@ struct WatchItemDetail: View {
             await viewModel.skipItem(item)
             dismiss()
         }
+    }
+}
+
+// MARK: - Watch Ma Colors (Simplified for Watch)
+
+struct WatchMaColors {
+    // Primary
+    static let primary = Color(hex: "7EB8DA")
+
+    // Semantic
+    static let complete = Color(hex: "8FBC8F")
+    static let completeSoft = Color(hex: "2D4A2D")
+    static let overdue = Color(hex: "E88B8B")
+    static let postpone = Color(hex: "E8B86D")
+
+    // Gamification
+    static let streak = Color(hex: "F5A855")
+    static let xp = Color(hex: "A68BC8")
+
+    // Backgrounds
+    static let background = Color(hex: "1A1918")
+    static let backgroundSecondary = Color(hex: "252423")
+
+    // Text
+    static let textPrimary = Color(hex: "F5F3F0")
+    static let textSecondary = Color(hex: "A8A5A0")
+    static let textTertiary = Color(hex: "6B6560")
+}
+
+// MARK: - Color Extension (for Watch)
+
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3:
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6:
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8:
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: Double(a) / 255
+        )
     }
 }
 

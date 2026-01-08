@@ -3,10 +3,11 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
+		058C0B42E4E794CA677EFEBB /* MaDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAE65C543D1299C2731A2682 /* MaDesignSystem.swift */; };
 		367954E15AF0EF26F1FD7D73 /* WatchTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8D787FC88F92571A9164372 /* WatchTimelineView.swift */; };
 		520EB18DDA77EBEB970B9DF4 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D577EF6C0F26D2F7F5C488E /* APIClient.swift */; };
 		5BA654585F78952176B7C879 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D577EF6C0F26D2F7F5C488E /* APIClient.swift */; };
@@ -60,10 +61,11 @@
 		4AB8A00CBB96261767FDCBB9 /* LifeOpsWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LifeOpsWidget.entitlements; sourceTree = "<group>"; };
 		4B5A6CC3BB0C59FF6A850C9D /* ItemDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemDetailSheet.swift; sourceTree = "<group>"; };
 		5074DA6C10B298AD5C5C77E1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		5FCE73B282C740EAF091EDBF /* MaWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MaWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		5FCE73B282C740EAF091EDBF /* MaWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = MaWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		6401F2D92BF6A2EECD77A901 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		789D07B5AA8297C1325704A1 /* Ma.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Ma.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		7CDD7EC1E568CAE166C58C7A /* MaWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = MaWatch.app; path = Ma.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		789D07B5AA8297C1325704A1 /* Ma.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Ma.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7CDD7EC1E568CAE166C58C7A /* MaWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MaWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BAE65C543D1299C2731A2682 /* MaDesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaDesignSystem.swift; sourceTree = "<group>"; };
 		C2D4830F7FFCA2ABE501DD46 /* WidgetAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetAPIClient.swift; sourceTree = "<group>"; };
 		DA49308B91FCCB2C88A88FC0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		EDAC9CB5D26B4BCBAEC930EF /* TimelineViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineViewModel.swift; sourceTree = "<group>"; };
@@ -79,6 +81,14 @@
 				F459A737E7323D58EA70763D /* TimelineModels.swift */,
 			);
 			path = Models;
+			sourceTree = "<group>";
+		};
+		2268CE68A7A472D0DFC4E0E0 /* Theme */ = {
+			isa = PBXGroup;
+			children = (
+				BAE65C543D1299C2731A2682 /* MaDesignSystem.swift */,
+			);
+			path = Theme;
 			sourceTree = "<group>";
 		};
 		23609FFADE4426D371CE4FA1 /* LifeOps */ = {
@@ -97,6 +107,7 @@
 			children = (
 				0EDA837543A7EB0E77F5D655 /* Models */,
 				720354BD967F0472710A820A /* Services */,
+				2268CE68A7A472D0DFC4E0E0 /* Theme */,
 				7B7DCFEC6E05CD260DDF7729 /* Views */,
 			);
 			path = Shared;
@@ -231,9 +242,11 @@
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					26CEDDC2E9A65992C3099918 = {
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 					9C8127823688F9171BAAE17E = {
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 					CB3A1F41CDC9F3BB6E1D4F04 = {
@@ -252,6 +265,7 @@
 			);
 			mainGroup = 82E003CBD074529F8418E13E;
 			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -289,6 +303,7 @@
 				5BA654585F78952176B7C879 /* APIClient.swift in Sources */,
 				B67B97C6EC990C17D7523D5A /* ItemDetailSheet.swift in Sources */,
 				EEE76D7EDAFA769DB8E27629 /* LifeOpsApp.swift in Sources */,
+				058C0B42E4E794CA677EFEBB /* MaDesignSystem.swift in Sources */,
 				754213F8FE7BF62B5B1D9272 /* TimelineModels.swift in Sources */,
 				EFA193C0875EB99745B92DE2 /* TimelineView.swift in Sources */,
 				B71389EF871144E79E935555 /* TimelineViewModel.swift in Sources */,
@@ -390,7 +405,6 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = LifeOpsWidget/LifeOpsWidget.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 7P75AX9HD2;
 				INFOPLIST_FILE = LifeOpsWidget/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -478,7 +492,6 @@
 				CODE_SIGN_ENTITLEMENTS = LifeOps/LifeOps.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 7P75AX9HD2;
 				INFOPLIST_FILE = LifeOps/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -500,7 +513,6 @@
 				CODE_SIGN_ENTITLEMENTS = LifeOps/LifeOps.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 7P75AX9HD2;
 				INFOPLIST_FILE = LifeOps/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -554,7 +566,6 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = LifeOpsWidget/LifeOpsWidget.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 7P75AX9HD2;
 				INFOPLIST_FILE = LifeOpsWidget/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
