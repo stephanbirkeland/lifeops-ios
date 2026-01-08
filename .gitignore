@@ -69,3 +69,9 @@ temp/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Frontend apps (separate repos)
+apps/ios/
+apps/android/
+apps/web/
+
