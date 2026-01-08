@@ -120,6 +120,29 @@ async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, 
 
 
 # =============================================================================
+# Mock Database Session (for unit tests without real DB)
+# =============================================================================
+
+@pytest.fixture
+def mock_db_session():
+    """
+    Mock database session for unit tests that don't need a real database.
+    Returns an AsyncMock that simulates database operations.
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    session = AsyncMock()
+    session.execute = AsyncMock()
+    session.add = MagicMock()
+    session.commit = AsyncMock()
+    session.rollback = AsyncMock()
+    session.refresh = AsyncMock()
+    session.close = AsyncMock()
+
+    return session
+
+
+# =============================================================================
 # Test Data Fixtures
 # =============================================================================
 
