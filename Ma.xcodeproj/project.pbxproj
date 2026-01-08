@@ -22,6 +22,7 @@
 		B1C7C381C942C6705FE4E9CF /* LifeOpsWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B4F084294725CF90CD77738 /* LifeOpsWatchApp.swift */; };
 		B67B97C6EC990C17D7523D5A /* ItemDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B5A6CC3BB0C59FF6A850C9D /* ItemDetailSheet.swift */; };
 		B71389EF871144E79E935555 /* TimelineViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDAC9CB5D26B4BCBAEC930EF /* TimelineViewModel.swift */; };
+		E0DA5C3A6F11FD8768BC9C18 /* MaFlowingTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42BA64BD1821D5092E6B99AA /* MaFlowingTimelineView.swift */; };
 		EEE76D7EDAFA769DB8E27629 /* LifeOpsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0308DA231041824FDEF5FAC9 /* LifeOpsApp.swift */; };
 		EFA193C0875EB99745B92DE2 /* TimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA0457F5B85229812094DB7 /* TimelineView.swift */; };
 /* End PBXBuildFile section */
@@ -58,6 +59,7 @@
 		1D577EF6C0F26D2F7F5C488E /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		1D5E7A985E0A1D4F7E84E065 /* LifeOps.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LifeOps.entitlements; sourceTree = "<group>"; };
 		38B31FDFB21773A176D3DB8D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		42BA64BD1821D5092E6B99AA /* MaFlowingTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaFlowingTimelineView.swift; sourceTree = "<group>"; };
 		4AB8A00CBB96261767FDCBB9 /* LifeOpsWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LifeOpsWidget.entitlements; sourceTree = "<group>"; };
 		4B5A6CC3BB0C59FF6A850C9D /* ItemDetailSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemDetailSheet.swift; sourceTree = "<group>"; };
 		5074DA6C10B298AD5C5C77E1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -146,6 +148,7 @@
 			isa = PBXGroup;
 			children = (
 				4B5A6CC3BB0C59FF6A850C9D /* ItemDetailSheet.swift */,
+				42BA64BD1821D5092E6B99AA /* MaFlowingTimelineView.swift */,
 				FFA0457F5B85229812094DB7 /* TimelineView.swift */,
 				EDAC9CB5D26B4BCBAEC930EF /* TimelineViewModel.swift */,
 			);
@@ -304,6 +307,7 @@
 				B67B97C6EC990C17D7523D5A /* ItemDetailSheet.swift in Sources */,
 				EEE76D7EDAFA769DB8E27629 /* LifeOpsApp.swift in Sources */,
 				058C0B42E4E794CA677EFEBB /* MaDesignSystem.swift in Sources */,
+				E0DA5C3A6F11FD8768BC9C18 /* MaFlowingTimelineView.swift in Sources */,
 				754213F8FE7BF62B5B1D9272 /* TimelineModels.swift in Sources */,
 				EFA193C0875EB99745B92DE2 /* TimelineView.swift in Sources */,
 				B71389EF871144E79E935555 /* TimelineViewModel.swift in Sources */,

@@ -34,7 +34,7 @@ struct MaMainTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            TimelineView()
+            MaFlowingTimelineView()
                 .tabItem {
                     Label("Timeline", systemImage: "leaf")
                 }
