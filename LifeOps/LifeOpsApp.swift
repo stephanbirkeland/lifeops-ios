@@ -21,14 +21,9 @@ struct ContentView: View {
     @EnvironmentObject var apiClient: APIClient
 
     var body: some View {
-        Group {
-            if apiClient.isAuthenticated {
-                MaMainTabView()
-            } else {
-                MaLoginView()
-            }
-        }
-        .tint(MaColors.primaryLight)
+        // Skip auth for now - backend auth not fully implemented yet
+        MaMainTabView()
+            .tint(MaColors.primaryLight)
     }
 }
 
