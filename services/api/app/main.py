@@ -1,20 +1,19 @@
 """LifeOps API - Main Application Entry Point"""
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-import logging
 
 from app.core.config import settings
 from app.core.database import init_db, close_db
+from app.core.logging import setup_logging, get_logger, set_correlation_id, get_correlation_id
+from app.core.error_handlers import register_exception_handlers
 from app.routers import health_router, oura_router, gamification_router, user_router, timeline_router
+from app.routers.auth import router as auth_router
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO if settings.environment == "production" else logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+setup_logging()
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
@@ -40,6 +39,7 @@ app = FastAPI(
 
     ## Features
 
+    - **Authentication**: JWT-based auth with register, login, and token refresh
     - **Timeline**: Rolling task feed that moves with your day
     - **Oura Integration**: Sync sleep, readiness, and activity data
     - **Gamification**: Life Score, XP, streaks, and achievements
@@ -47,10 +47,20 @@ app = FastAPI(
 
     ## Quick Start
 
-    1. Get your timeline: `GET /timeline`
-    2. Get your Life Score: `GET /api/today`
-    3. Sync Oura data: `POST /oura/sync`
-    4. Complete a task: `POST /timeline/{code}/complete`
+    1. Register: `POST /auth/register`
+    2. Login: `POST /auth/login` (get access token)
+    3. Get your timeline: `GET /timeline` (with Bearer token)
+    4. Get your Life Score: `GET /api/today`
+    5. Sync Oura data: `POST /oura/sync`
+    6. Complete a task: `POST /timeline/{code}/complete`
+
+    ## Authentication
+
+    Most endpoints require authentication. Include your access token in requests:
+
+    ```
+    Authorization: Bearer <your_access_token>
+    ```
     """,
     version="0.1.0",
     lifespan=lifespan,
@@ -72,7 +82,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Register exception handlers
+register_exception_handlers(app)
+
 # Include routers
+app.include_router(auth_router)  # Authentication first
 app.include_router(health_router)
 app.include_router(oura_router)
 app.include_router(gamification_router)
@@ -80,9 +94,23 @@ app.include_router(user_router)
 app.include_router(timeline_router)
 
 
+# Correlation ID middleware - must be added after CORS
+@app.middleware("http")
+async def correlation_id_middleware(request: Request, call_next):
+    """Add correlation ID to each request for distributed tracing."""
+    # Check for existing correlation ID in headers
+    correlation_id = request.headers.get("X-Correlation-ID")
+    correlation_id = set_correlation_id(correlation_id)
+
+    response = await call_next(request)
+
+    # Add correlation ID to response headers
+    response.headers["X-Correlation-ID"] = correlation_id
+    return response
+
+
 # Additional middleware for request logging (development)
 if settings.environment == "development":
-    from fastapi import Request
     import time
 
     @app.middleware("http")

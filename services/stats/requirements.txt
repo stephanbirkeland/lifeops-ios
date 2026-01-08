@@ -14,7 +14,7 @@ pydantic==2.6.1
 pydantic-settings==2.1.0
 
 # MQTT for events
-paho-mqtt==2.0.0
+paho-mqtt==1.6.1
 aiomqtt==2.0.0
 
 # Utilities

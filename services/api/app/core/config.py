@@ -29,10 +29,30 @@ class Settings(BaseSettings):
     oura_client_secret: str | None = Field(default=None, alias="OURA_CLIENT_SECRET")
     oura_api_base_url: str = "https://api.ouraring.com/v2"
 
-    # Security
-    jwt_secret: str = Field(default="dev_secret_change_me", alias="JWT_SECRET")
-    jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 60 * 24 * 7  # 1 week
+    # Security - JWT Configuration
+    # IMPORTANT: Change JWT_SECRET in production to a strong random string!
+    # Generate with: openssl rand -hex 32
+    jwt_secret: str = Field(
+        default="dev_secret_change_me_in_production",
+        alias="JWT_SECRET",
+        description="Secret key for JWT token signing. Must be kept secret!"
+    )
+    jwt_algorithm: str = Field(
+        default="HS256",
+        alias="JWT_ALGORITHM",
+        description="Algorithm for JWT signing (HS256 or RS256)"
+    )
+    # Token expiration times
+    access_token_expire_minutes: int = Field(
+        default=15,
+        alias="ACCESS_TOKEN_EXPIRE_MINUTES",
+        description="Access token expiration time in minutes"
+    )
+    refresh_token_expire_days: int = Field(
+        default=7,
+        alias="REFRESH_TOKEN_EXPIRE_DAYS",
+        description="Refresh token expiration time in days"
+    )
 
     # Gamification weights
     sleep_weight: float = 0.40

@@ -13,7 +13,7 @@ from app.routers import characters_router, stats_router, tree_router, activities
 async def lifespan(app: FastAPI):
     """Application lifespan handler"""
     # Startup: Create tables if needed (dev only - use migrations in prod)
-    if settings.DEBUG:
+    if settings.debug:
         async with engine.begin() as conn:
             # Don't drop existing tables - let init SQL handle schema
             pass

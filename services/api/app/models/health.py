@@ -20,7 +20,7 @@ class HealthMetricDB(Base):
     time = Column(DateTime(timezone=True), primary_key=True)
     metric_type = Column(String, primary_key=True)
     value = Column(Float)
-    metadata = Column(JSONB, default={})
+    metric_metadata = Column(JSONB, default={})  # Note: 'metadata' is reserved in SQLAlchemy
     source = Column(String, default="oura")
 
 

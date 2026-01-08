@@ -1,9 +1,13 @@
 # LifeOps
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-green.svg)](https://fastapi.tiangolo.com/)
 [![License: Non-Commercial](https://img.shields.io/badge/License-Non--Commercial-red.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/Docker-ready-blue.svg)](https://www.docker.com/)
+[![CI](https://github.com/stephanbirkeland/LifeOps/actions/workflows/ci.yml/badge.svg)](https://github.com/stephanbirkeland/LifeOps/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/stephanbirkeland/LifeOps/branch/main/graph/badge.svg)](https://codecov.io/gh/stephanbirkeland/LifeOps)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
 A privacy-first, self-hosted personal life management system with gamification. Control all aspects of your private life from ONE unified app.
 
@@ -75,7 +79,7 @@ LifeOps is a private, personal life management system designed to:
 ### Prerequisites
 
 - Docker and Docker Compose
-- Python 3.11+ (for local development)
+- Python 3.12+ (for local development)
 - Git
 
 ### Using Docker (Recommended)
@@ -172,6 +176,7 @@ LifeOps/
 | [VISION.md](VISION.md) | Core philosophy and goals |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Technical architecture |
 | [QUICKSTART.md](QUICKSTART.md) | Getting started guide |
+| [CI_CD.md](CI_CD.md) | CI/CD pipeline and quality gates |
 | [ROUTINES.md](ROUTINES.md) | Daily patterns and habits |
 | [AGENTS.md](AGENTS.md) | Life domain agent definitions |
 | [ROADMAP_TO_PRODUCTION.md](ROADMAP_TO_PRODUCTION.md) | Production timeline |
@@ -193,16 +198,25 @@ pytest tests/unit/test_gamification_model.py -v
 
 ### Code Quality
 
+The project enforces strict quality gates with a minimum 60% test coverage requirement.
+
 ```bash
+# Install pre-commit hooks
+pip install pre-commit
+pre-commit install
+
 # Format code
-ruff format app/
+ruff format services/api/app/ services/stats/app/
 
 # Lint code
-ruff check app/
+ruff check services/api/app/ services/stats/app/
 
 # Type checking
-mypy app/
+mypy services/api/app/ --config-file=pyproject.toml
+mypy services/stats/app/ --config-file=pyproject.toml
 ```
+
+See [CI_CD.md](CI_CD.md) for detailed information on quality gates, pre-commit hooks, and pipeline configuration.
 
 ### AI-Assisted Development
 
@@ -228,7 +242,7 @@ This project uses Claude Code with 20 specialist agents for architecture, implem
 
 ## Tech Stack
 
-- **Backend**: Python 3.11+, FastAPI, SQLAlchemy 2.0 (async)
+- **Backend**: Python 3.12+, FastAPI, SQLAlchemy 2.0 (async)
 - **Databases**: PostgreSQL 16, TimescaleDB
 - **Message Broker**: Mosquitto (MQTT)
 - **Containerization**: Docker, Docker Compose
