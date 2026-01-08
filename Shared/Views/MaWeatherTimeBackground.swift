@@ -750,7 +750,7 @@ struct CloudShape: Shape {
         var path = Path()
 
         // Create organic cloud shape with multiple overlapping ellipses
-        let random = SeededRandom(seed: seed)
+        var random = SeededRandom(seed: seed)
         let blobCount = 4 + seed % 3
 
         for i in 0..<blobCount {
@@ -797,7 +797,7 @@ struct PrecipitationLayer: View {
     @State private var particles: [PrecipitationParticle] = []
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1/30)) { timeline in
+        TimelineView(.animation) { timeline in
             Canvas { context, size in
                 let time = timeline.date.timeIntervalSince1970
 

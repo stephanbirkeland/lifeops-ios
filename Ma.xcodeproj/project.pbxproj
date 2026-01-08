@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		058C0B42E4E794CA677EFEBB /* MaDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAE65C543D1299C2731A2682 /* MaDesignSystem.swift */; };
+		06FD5FFB7E3321D37725A21F /* MaWeatherTimeBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB479F7B5D8C1A6D1D1D64F2 /* MaWeatherTimeBackground.swift */; };
 		367954E15AF0EF26F1FD7D73 /* WatchTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8D787FC88F92571A9164372 /* WatchTimelineView.swift */; };
 		520EB18DDA77EBEB970B9DF4 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D577EF6C0F26D2F7F5C488E /* APIClient.swift */; };
 		5BA654585F78952176B7C879 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D577EF6C0F26D2F7F5C488E /* APIClient.swift */; };
@@ -70,6 +71,7 @@
 		BAE65C543D1299C2731A2682 /* MaDesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaDesignSystem.swift; sourceTree = "<group>"; };
 		C2D4830F7FFCA2ABE501DD46 /* WidgetAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetAPIClient.swift; sourceTree = "<group>"; };
 		DA49308B91FCCB2C88A88FC0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		DB479F7B5D8C1A6D1D1D64F2 /* MaWeatherTimeBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaWeatherTimeBackground.swift; sourceTree = "<group>"; };
 		EDAC9CB5D26B4BCBAEC930EF /* TimelineViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineViewModel.swift; sourceTree = "<group>"; };
 		F459A737E7323D58EA70763D /* TimelineModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineModels.swift; sourceTree = "<group>"; };
 		F8D787FC88F92571A9164372 /* WatchTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchTimelineView.swift; sourceTree = "<group>"; };
@@ -149,6 +151,7 @@
 			children = (
 				4B5A6CC3BB0C59FF6A850C9D /* ItemDetailSheet.swift */,
 				42BA64BD1821D5092E6B99AA /* MaFlowingTimelineView.swift */,
+				DB479F7B5D8C1A6D1D1D64F2 /* MaWeatherTimeBackground.swift */,
 				FFA0457F5B85229812094DB7 /* TimelineView.swift */,
 				EDAC9CB5D26B4BCBAEC930EF /* TimelineViewModel.swift */,
 			);
@@ -308,6 +311,7 @@
 				EEE76D7EDAFA769DB8E27629 /* LifeOpsApp.swift in Sources */,
 				058C0B42E4E794CA677EFEBB /* MaDesignSystem.swift in Sources */,
 				E0DA5C3A6F11FD8768BC9C18 /* MaFlowingTimelineView.swift in Sources */,
+				06FD5FFB7E3321D37725A21F /* MaWeatherTimeBackground.swift in Sources */,
 				754213F8FE7BF62B5B1D9272 /* TimelineModels.swift in Sources */,
 				EFA193C0875EB99745B92DE2 /* TimelineView.swift in Sources */,
 				B71389EF871144E79E935555 /* TimelineViewModel.swift in Sources */,
