@@ -380,6 +380,21 @@ struct MaEnhancedFlowingHeader: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var colonOpacity: Double = 1
 
+    // Determine if we need light text based on time of day
+    private var needsLightText: Bool {
+        let hour = Calendar.current.component(.hour, from: currentTime)
+        // Dark backgrounds: night (0-5), dusk (19-21), late night (21-24)
+        return hour < 6 || hour >= 19
+    }
+
+    private var textColor: Color {
+        needsLightText ? .white : MaColors.textPrimary
+    }
+
+    private var secondaryTextColor: Color {
+        needsLightText ? .white.opacity(0.7) : MaColors.textSecondary
+    }
+
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: MaSpacing.xxs) {
@@ -387,22 +402,22 @@ struct MaEnhancedFlowingHeader: View {
                 HStack(spacing: 0) {
                     Text(hourString)
                         .font(.system(size: 48, weight: .ultraLight, design: .rounded))
-                        .foregroundStyle(MaColors.textPrimary)
+                        .foregroundStyle(textColor)
                         .monospacedDigit()
 
                     Text(":")
                         .font(.system(size: 48, weight: .ultraLight, design: .rounded))
-                        .foregroundStyle(MaColors.textPrimary.opacity(colonOpacity))
+                        .foregroundStyle(textColor.opacity(colonOpacity))
 
                     Text(minuteString)
                         .font(.system(size: 48, weight: .ultraLight, design: .rounded))
-                        .foregroundStyle(MaColors.textPrimary)
+                        .foregroundStyle(textColor)
                         .monospacedDigit()
                 }
 
                 Text(dateString)
                     .font(MaTypography.bodyMedium)
-                    .foregroundStyle(MaColors.textSecondary)
+                    .foregroundStyle(secondaryTextColor)
             }
 
             Spacer()
@@ -413,11 +428,11 @@ struct MaEnhancedFlowingHeader: View {
         .padding(.horizontal, MaSpacing.lg)
         .padding(.top, MaSpacing.lg)
         .background(
+            // Subtle gradient for readability, adapts to time
             LinearGradient(
                 colors: [
-                    MaColors.background,
-                    MaColors.background.opacity(0.95),
-                    MaColors.background.opacity(0)
+                    (needsLightText ? Color.black : Color.white).opacity(0.15),
+                    Color.clear
                 ],
                 startPoint: .top,
                 endPoint: .bottom
