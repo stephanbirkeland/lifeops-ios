@@ -6,22 +6,37 @@ import Foundation
 // MARK: - Timeline Feed
 
 struct TimelineFeed: Codable {
+    let now: String
+    let date: String
+    let windowHours: Int
     let items: [TimelineFeedItem]
-    let currentTime: Date
-    let windowStart: Date
-    let windowEnd: Date
-    let overdue: [TimelineFeedItem]
-    let upcoming: [TimelineFeedItem]
-    let completed: [TimelineFeedItem]
+    let completedToday: Int
+    let totalToday: Int
+    let completionRate: Double
+    let hiddenCount: Int
+    let nextHiddenAt: String?
 
     enum CodingKeys: String, CodingKey {
-        case items
-        case currentTime = "current_time"
-        case windowStart = "window_start"
-        case windowEnd = "window_end"
-        case overdue
-        case upcoming
-        case completed
+        case now, date, items
+        case windowHours = "window_hours"
+        case completedToday = "completed_today"
+        case totalToday = "total_today"
+        case completionRate = "completion_rate"
+        case hiddenCount = "hidden_count"
+        case nextHiddenAt = "next_hidden_at"
+    }
+
+    // Computed properties for backwards compatibility
+    var overdue: [TimelineFeedItem] {
+        items.filter { $0.isOverdue }
+    }
+
+    var upcoming: [TimelineFeedItem] {
+        items.filter { $0.status == .upcoming }
+    }
+
+    var completed: [TimelineFeedItem] {
+        items.filter { $0.status == .completed }
     }
 }
 
@@ -30,37 +45,57 @@ struct TimelineFeed: Codable {
 struct TimelineFeedItem: Codable, Identifiable {
     let id: String
     let code: String
-    let title: String
+    let name: String
     let description: String?
     let icon: String?
-    let color: String?
-    let timeAnchor: String?
-    let scheduledTime: Date?
-    let windowMinutes: Int
+    let category: String?
+    let scheduledTime: String?
+    let windowEnd: String?
     let status: ItemStatus
-    let isOverdue: Bool
     let currentStreak: Int
     let bestStreak: Int
-    let xpReward: Int
-    let category: String?
+    let completedAt: String?
+    let statRewards: [String: Int]?
 
     enum CodingKeys: String, CodingKey {
-        case id, code, title, description, icon, color
-        case timeAnchor = "time_anchor"
+        case id, code, name, description, icon, category, status
         case scheduledTime = "scheduled_time"
-        case windowMinutes = "window_minutes"
-        case status
-        case isOverdue = "is_overdue"
+        case windowEnd = "window_end"
         case currentStreak = "current_streak"
         case bestStreak = "best_streak"
-        case xpReward = "xp_reward"
-        case category
+        case completedAt = "completed_at"
+        case statRewards = "stat_rewards"
+    }
+
+    // Computed properties for convenience
+    var title: String { name }
+
+    var isOverdue: Bool {
+        guard let timeStr = scheduledTime else { return false }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        guard let scheduledDate = formatter.date(from: timeStr) else { return false }
+
+        let calendar = Calendar.current
+        let now = Date()
+        let todayScheduled = calendar.date(
+            bySettingHour: calendar.component(.hour, from: scheduledDate),
+            minute: calendar.component(.minute, from: scheduledDate),
+            second: 0,
+            of: now
+        )
+        return todayScheduled.map { now > $0 } ?? false
+    }
+
+    var xpReward: Int {
+        statRewards?.values.reduce(0, +) ?? 0
     }
 }
 
 enum ItemStatus: String, Codable {
     case pending
     case active
+    case upcoming
     case completed
     case skipped
     case postponed

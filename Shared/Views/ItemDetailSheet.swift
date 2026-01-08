@@ -122,10 +122,10 @@ struct ItemHeader: View {
             if let time = item.scheduledTime {
                 HStack {
                     Image(systemName: "clock")
-                    Text(formatTime(time))
+                    Text(formatTimeString(time))
 
-                    if item.windowMinutes > 0 {
-                        Text("(\(item.windowMinutes) min window)")
+                    if let windowEnd = item.windowEnd {
+                        Text("(until \(formatTimeString(windowEnd)))")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -138,16 +138,18 @@ struct ItemHeader: View {
     }
 
     private var iconBackgroundColor: Color {
-        if let colorName = item.color {
-            return Color(colorName)
-        }
         return .blue
     }
 
-    private func formatTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+    private func formatTimeString(_ timeStr: String) -> String {
+        let inputFormatter = DateFormatter()
+        inputFormatter.dateFormat = "HH:mm:ss"
+        guard let date = inputFormatter.date(from: timeStr) else {
+            return timeStr
+        }
+        let outputFormatter = DateFormatter()
+        outputFormatter.timeStyle = .short
+        return outputFormatter.string(from: date)
     }
 }
 
@@ -175,6 +177,7 @@ struct StatusBadge: View {
         switch status {
         case .pending: return "circle"
         case .active: return "play.circle"
+        case .upcoming: return "clock"
         case .completed: return "checkmark.circle"
         case .skipped: return "forward.circle"
         case .postponed: return "clock.arrow.circlepath"
@@ -186,6 +189,7 @@ struct StatusBadge: View {
         switch status {
         case .pending: return "Pending"
         case .active: return "Active"
+        case .upcoming: return "Upcoming"
         case .completed: return "Completed"
         case .skipped: return "Skipped"
         case .postponed: return "Postponed"
@@ -197,6 +201,7 @@ struct StatusBadge: View {
         switch status {
         case .pending: return .gray
         case .active: return .blue
+        case .upcoming: return .secondary
         case .completed: return .green
         case .skipped: return .orange
         case .postponed: return .purple
@@ -419,19 +424,17 @@ struct PostponeSheet: View {
         item: TimelineFeedItem(
             id: "1",
             code: "morning_workout",
-            title: "Morning Workout",
+            name: "Morning Workout",
             description: "30 minutes of exercise to start the day",
             icon: "figure.run",
-            color: "orange",
-            timeAnchor: "morning",
-            scheduledTime: Date(),
-            windowMinutes: 60,
+            category: "health",
+            scheduledTime: "08:00:00",
+            windowEnd: "09:00:00",
             status: .active,
-            isOverdue: false,
             currentStreak: 5,
             bestStreak: 12,
-            xpReward: 50,
-            category: "health"
+            completedAt: nil,
+            statRewards: ["STR": 30, "VIT": 20]
         ),
         viewModel: TimelineViewModel()
     )

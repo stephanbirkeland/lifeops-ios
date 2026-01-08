@@ -183,7 +183,7 @@ struct TimelineItemRow: View {
 
                 HStack(spacing: 8) {
                     if let time = item.scheduledTime {
-                        Label(formatTime(time), systemImage: "clock")
+                        Label(formatTimeString(time), systemImage: "clock")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -227,16 +227,19 @@ struct TimelineItemRow: View {
     }
 
     private var iconColor: Color {
-        if let colorName = item.color {
-            return Color(colorName)
-        }
         return .primary
     }
 
-    private func formatTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+    private func formatTimeString(_ timeStr: String) -> String {
+        // Parse "HH:mm:ss" format and display as "h:mm a"
+        let inputFormatter = DateFormatter()
+        inputFormatter.dateFormat = "HH:mm:ss"
+        guard let date = inputFormatter.date(from: timeStr) else {
+            return timeStr
+        }
+        let outputFormatter = DateFormatter()
+        outputFormatter.timeStyle = .short
+        return outputFormatter.string(from: date)
     }
 }
 

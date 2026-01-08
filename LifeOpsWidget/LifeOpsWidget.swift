@@ -72,14 +72,14 @@ struct TimelineProvider: AppIntentTimelineProvider {
         do {
             let feed = try await WidgetAPIClient.shared.getTimeline()
 
-            // Combine overdue + active items, limit to 5
-            let allItems = feed.overdue + feed.items.filter { $0.status == .active }
+            // Get all items from feed (overdue computed, plus active/upcoming)
+            let allItems = feed.items.filter { $0.status == .active || $0.status == .upcoming || $0.isOverdue }
             return allItems.prefix(5).map { item in
                 WidgetItem(
                     id: item.id,
                     title: item.title,
                     icon: item.icon,
-                    time: item.scheduledTime,
+                    time: parseTimeString(item.scheduledTime),
                     isOverdue: item.isOverdue,
                     streak: item.currentStreak
                 )
@@ -88,6 +88,23 @@ struct TimelineProvider: AppIntentTimelineProvider {
             // Return empty on error
             return []
         }
+    }
+
+    private func parseTimeString(_ timeStr: String?) -> Date? {
+        guard let timeStr = timeStr else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        guard let time = formatter.date(from: timeStr) else { return nil }
+
+        // Combine with today's date
+        let calendar = Calendar.current
+        let now = Date()
+        return calendar.date(
+            bySettingHour: calendar.component(.hour, from: time),
+            minute: calendar.component(.minute, from: time),
+            second: 0,
+            of: now
+        )
     }
 }
 
