@@ -99,7 +99,12 @@ struct MaFlowingTimelineView: View {
             }
         }
         .sheet(item: $viewModel.selectedItem) { item in
-            ItemDetailSheet(item: item.timelineItem)
+            MaFlowingItemDetailSheet(
+                item: item,
+                onComplete: { viewModel.completeItem(item) },
+                onPostpone: { viewModel.postponeItem(item) },
+                onSkip: { viewModel.skipItem(item) }
+            )
         }
         .onAppear {
             viewModel.startFlowing()
@@ -623,6 +628,144 @@ struct BubbleExitModifier: ViewModifier {
             .scaleEffect(isActive ? 0.8 : 1)
             .blur(radius: isActive ? 3 : 0)
             .offset(y: isActive ? 20 : 0)
+    }
+}
+
+// MARK: - Flowing Item Detail Sheet
+
+struct MaFlowingItemDetailSheet: View {
+    let item: FlowingItem
+    let onComplete: () -> Void
+    let onPostpone: () -> Void
+    let onSkip: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) var colorScheme
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                MaColors.background
+                    .ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: MaSpacing.xl) {
+                        // Item header
+                        VStack(spacing: MaSpacing.md) {
+                            // Icon
+                            ZStack {
+                                Circle()
+                                    .fill(item.color.opacity(0.15))
+                                    .frame(width: 80, height: 80)
+
+                                Image(systemName: item.timelineItem.icon ?? "circle")
+                                    .font(.system(size: 36))
+                                    .foregroundStyle(item.color)
+                            }
+
+                            // Title
+                            Text(item.title)
+                                .font(MaTypography.titleLarge)
+                                .foregroundStyle(MaColors.textPrimary)
+                                .multilineTextAlignment(.center)
+
+                            // Streak badge
+                            if item.streak > 0 {
+                                MaStreakBadge(streak: item.streak)
+                            }
+
+                            // Description
+                            if let description = item.timelineItem.description {
+                                Text(description)
+                                    .font(MaTypography.bodyMedium)
+                                    .foregroundStyle(MaColors.textSecondary)
+                                    .multilineTextAlignment(.center)
+                            }
+
+                            // Scheduled time
+                            if let time = item.scheduledTime {
+                                HStack(spacing: MaSpacing.xxs) {
+                                    Image(systemName: "clock")
+                                        .font(.caption)
+                                    Text(time, style: .time)
+                                        .font(MaTypography.labelSmall)
+                                }
+                                .foregroundStyle(MaColors.textTertiary)
+                            }
+                        }
+                        .padding(MaSpacing.xl)
+                        .background(
+                            RoundedRectangle(cornerRadius: MaRadius.lg)
+                                .fill(MaColors.backgroundSecondary)
+                                .shadow(
+                                    color: colorScheme == .dark ? .clear : .black.opacity(0.04),
+                                    radius: 8,
+                                    y: 2
+                                )
+                        )
+
+                        // Action buttons
+                        VStack(spacing: MaSpacing.md) {
+                            // Complete button
+                            Button {
+                                onComplete()
+                                dismiss()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "checkmark.circle.fill")
+                                    Text("Complete")
+                                }
+                                .font(MaTypography.labelLarge)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, MaSpacing.md)
+                            }
+                            .buttonStyle(MaPrimaryButtonStyle(color: MaColors.complete))
+
+                            // Postpone button
+                            Button {
+                                onPostpone()
+                                dismiss()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "clock.arrow.circlepath")
+                                    Text("Postpone")
+                                }
+                                .font(MaTypography.labelMedium)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, MaSpacing.sm)
+                            }
+                            .buttonStyle(MaSecondaryButtonStyle(color: MaColors.postpone))
+
+                            // Skip button
+                            Button {
+                                onSkip()
+                                dismiss()
+                            } label: {
+                                HStack {
+                                    Image(systemName: "forward.fill")
+                                    Text("Skip")
+                                }
+                                .font(MaTypography.labelMedium)
+                                .foregroundStyle(MaColors.textSecondary)
+                            }
+                            .padding(.top, MaSpacing.sm)
+                        }
+                        .padding(MaSpacing.lg)
+                    }
+                    .padding(MaSpacing.md)
+                }
+            }
+            .navigationTitle("Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                    .foregroundStyle(MaColors.primaryLight)
+                }
+            }
+        }
     }
 }
 
@@ -1166,7 +1309,7 @@ struct FlowingItem: Identifiable {
     let color: Color
     let streak: Int
     let estimatedMinutes: Int
-    let timelineItem: TimelineItem
+    let timelineItem: TimelineFeedItem
 
     // Animation properties
     var currentY: CGFloat = 0
@@ -1287,7 +1430,7 @@ class FlowingTimelineViewModel: ObservableObject {
         }
     }
 
-    private func createFlowingItem(from item: TimelineItem) -> FlowingItem {
+    private func createFlowingItem(from item: TimelineFeedItem) -> FlowingItem {
         let color = colorForItem(item)
         let scheduledTime = parseTime(item.scheduledTime)
 
@@ -1297,21 +1440,25 @@ class FlowingTimelineViewModel: ObservableObject {
             scheduledTime: scheduledTime,
             color: color,
             streak: item.currentStreak,
-            estimatedMinutes: item.estimatedMinutes ?? 15,
+            estimatedMinutes: 15, // Default estimate
             timelineItem: item
         )
     }
 
-    private func colorForItem(_ item: TimelineItem) -> Color {
-        switch item.itemType {
-        case .habit:
+    private func colorForItem(_ item: TimelineFeedItem) -> Color {
+        switch item.category?.lowercased() {
+        case "habit":
             return MaColors.primaryLight
-        case .routine:
+        case "routine":
             return MaColors.secondary
-        case .event:
+        case "event":
             return MaColors.xp
-        case .reminder:
+        case "reminder":
             return MaColors.postpone
+        case "health":
+            return MaColors.complete
+        case "work":
+            return MaColors.streak
         default:
             return MaColors.primaryLight
         }
@@ -1418,6 +1565,17 @@ class FlowingTimelineViewModel: ObservableObject {
                 await loadTimeline()
             } catch {
                 print("Failed to postpone: \(error)")
+            }
+        }
+    }
+
+    func skipItem(_ item: FlowingItem) {
+        Task {
+            do {
+                try await apiClient.skipItem(code: item.id)
+                await loadTimeline()
+            } catch {
+                print("Failed to skip: \(error)")
             }
         }
     }
