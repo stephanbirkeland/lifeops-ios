@@ -315,7 +315,7 @@ struct MaEnhancedTimeIndicator: View {
                     lineWidth: 2
                 )
                 .frame(width: 40 + breathePhase * 8, height: 40 + breathePhase * 8)
-                .opacity(1 - breathePhase * 0.5)
+                .opacity(1.0 - breathePhase * 0.5)
 
             // Middle glow
             Circle()
@@ -734,7 +734,7 @@ struct MaFlowingItemDetailSheet: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, MaSpacing.sm)
                             }
-                            .buttonStyle(MaSecondaryButtonStyle(color: MaColors.postpone))
+                            .buttonStyle(MaSecondaryButtonStyle())
 
                             // Skip button
                             Button {
@@ -1561,7 +1561,7 @@ class FlowingTimelineViewModel: ObservableObject {
     func postponeItem(_ item: FlowingItem) {
         Task {
             do {
-                _ = try await apiClient.postponeItem(code: item.id, target: .later)
+                _ = try await apiClient.postponeItem(code: item.id, target: .afternoon)
                 await loadTimeline()
             } catch {
                 print("Failed to postpone: \(error)")
