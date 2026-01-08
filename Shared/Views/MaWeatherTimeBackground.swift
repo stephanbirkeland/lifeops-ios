@@ -9,6 +9,7 @@
 // - Smooth transitions as the user scrolls through time
 
 import SwiftUI
+import Combine
 
 // MARK: - Time Period
 
@@ -795,46 +796,51 @@ struct PrecipitationLayer: View {
     let screenSize: CGSize
 
     @State private var particles: [PrecipitationParticle] = []
+    @State private var animationTime: Double = 0
+
+    let timer = Timer.publish(every: 1/30, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        TimelineView(.animation) { timeline in
-            Canvas { context, size in
-                let time = timeline.date.timeIntervalSince1970
+        Canvas { context, size in
+            let time = animationTime
 
-                for particle in particles {
-                    let animatedY = (particle.startY + CGFloat(time * particle.speed * 50))
-                        .truncatingRemainder(dividingBy: size.height + 50)
-                    let animatedX = particle.x + sin(time * particle.wobble) * particle.wobbleAmount
+            for particle in particles {
+                let animatedY = (particle.startY + CGFloat(time * particle.speed * 50))
+                    .truncatingRemainder(dividingBy: size.height + 50)
+                let animatedX = particle.x + sin(time * particle.wobble) * particle.wobbleAmount
 
-                    if type == .rain {
-                        // Draw rain drop
-                        var rainPath = Path()
-                        rainPath.move(to: CGPoint(x: animatedX, y: animatedY))
-                        rainPath.addLine(to: CGPoint(x: animatedX, y: animatedY + particle.size))
+                if type == .rain {
+                    // Draw rain drop
+                    var rainPath = Path()
+                    rainPath.move(to: CGPoint(x: animatedX, y: animatedY))
+                    rainPath.addLine(to: CGPoint(x: animatedX, y: animatedY + particle.size))
 
-                        context.stroke(
-                            rainPath,
-                            with: .color(.white.opacity(particle.opacity * 0.3)),
-                            lineWidth: 1
-                        )
-                    } else {
-                        // Draw snowflake
-                        context.opacity = particle.opacity * 0.6
-                        context.fill(
-                            Circle().path(in: CGRect(
-                                x: animatedX - particle.size / 2,
-                                y: animatedY - particle.size / 2,
-                                width: particle.size,
-                                height: particle.size
-                            )),
-                            with: .color(.white)
-                        )
-                    }
+                    context.stroke(
+                        rainPath,
+                        with: .color(.white.opacity(particle.opacity * 0.3)),
+                        lineWidth: 1
+                    )
+                } else {
+                    // Draw snowflake
+                    context.opacity = particle.opacity * 0.6
+                    context.fill(
+                        Circle().path(in: CGRect(
+                            x: animatedX - particle.size / 2,
+                            y: animatedY - particle.size / 2,
+                            width: particle.size,
+                            height: particle.size
+                        )),
+                        with: .color(.white)
+                    )
                 }
             }
         }
         .onAppear {
             generateParticles()
+            animationTime = Date().timeIntervalSince1970
+        }
+        .onReceive(timer) { _ in
+            animationTime = Date().timeIntervalSince1970
         }
     }
 
