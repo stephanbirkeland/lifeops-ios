@@ -93,7 +93,7 @@ struct MaFlowingTimelineView: View {
 
                 // Completion celebration overlay
                 if showCompletionCelebration {
-                    MaCompletionCelebration(position: completedItemPosition)
+                    MaFlowingCompletionCelebration(position: completedItemPosition)
                         .allowsHitTesting(false)
                 }
             }
@@ -1067,9 +1067,9 @@ struct MaEnhancedQuickBundle: View {
     }
 }
 
-// MARK: - Completion Celebration
+// MARK: - Flowing Completion Celebration
 
-struct MaCompletionCelebration: View {
+struct MaFlowingCompletionCelebration: View {
     let position: CGPoint
     @State private var particles: [CelebrationParticle] = []
     @State private var checkScale: CGFloat = 0
