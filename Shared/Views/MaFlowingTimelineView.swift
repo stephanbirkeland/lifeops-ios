@@ -13,23 +13,94 @@
 import SwiftUI
 import Combine
 
+// MARK: - Icon Helper View
+
+/// Displays either an SF Symbol or emoji text based on the icon string
+struct MaIconView: View {
+    let icon: String?
+    let fallback: String
+    let size: CGFloat
+    let color: Color
+
+    init(icon: String?, fallback: String = "circle", size: CGFloat = 24, color: Color = .primary) {
+        self.icon = icon
+        self.fallback = fallback
+        self.size = size
+        self.color = color
+    }
+
+    var body: some View {
+        if let icon = icon, !icon.isEmpty {
+            if isEmoji(icon) {
+                // Display emoji as text
+                Text(icon)
+                    .font(.system(size: size * 0.9))
+            } else if isSFSymbol(icon) {
+                // Display as SF Symbol
+                Image(systemName: icon)
+                    .font(.system(size: size))
+                    .foregroundStyle(color)
+            } else {
+                // Unknown format, show as text
+                Text(icon)
+                    .font(.system(size: size * 0.8))
+            }
+        } else {
+            // Fallback SF Symbol
+            Image(systemName: fallback)
+                .font(.system(size: size))
+                .foregroundStyle(color)
+        }
+    }
+
+    /// Check if string starts with an emoji
+    private func isEmoji(_ string: String) -> Bool {
+        guard let firstScalar = string.unicodeScalars.first else { return false }
+        return firstScalar.properties.isEmoji && firstScalar.properties.isEmojiPresentation
+    }
+
+    /// Check if string looks like an SF Symbol name (lowercase, dots, periods)
+    private func isSFSymbol(_ string: String) -> Bool {
+        let sfSymbolPattern = string.allSatisfy { $0.isLetter || $0.isNumber || $0 == "." || $0 == "-" }
+        return sfSymbolPattern && !string.isEmpty
+    }
+}
+
 // MARK: - Flowing Timeline View
 
 struct MaFlowingTimelineView: View {
     @StateObject private var viewModel = FlowingTimelineViewModel()
+    @StateObject private var networkMonitor = NetworkMonitor.shared
     @Environment(\.colorScheme) var colorScheme
     @State private var showCompletionCelebration = false
     @State private var completedItemPosition: CGPoint = .zero
+
+    // Gesture state for time scrubbing
+    @GestureState private var scrubDragOffset: CGFloat = 0
+    @State private var lastDragValue: CGFloat = 0
 
     var body: some View {
         GeometryReader { geometry in
             ZStack {
                 // Weather and time-aware background
                 MaWeatherTimeBackground(
-                    displayTime: viewModel.currentTime,
-                    weather: .clear  // TODO: Integrate with weather service
+                    displayTime: viewModel.displayTime,
+                    weather: viewModel.currentWeather
                 )
                 .ignoresSafeArea()
+
+                // Loading state (first load only)
+                if viewModel.isLoading && viewModel.flowingItems.isEmpty && viewModel.piledUpItems.isEmpty {
+                    MaLoadingView("Loading your timeline...")
+                }
+                // Error state (only show full error if we have no data)
+                else if let error = viewModel.error, viewModel.flowingItems.isEmpty && viewModel.piledUpItems.isEmpty {
+                    MaErrorView(error: error) {
+                        viewModel.retry()
+                    }
+                }
+                else {
+                    // Main content - always show timeline
 
                 // Central timeline with gradient glow
                 MaEnhancedTimelinePath(screenHeight: geometry.size.height)
@@ -37,15 +108,46 @@ struct MaFlowingTimelineView: View {
 
                 // Flowing events with enhanced animations
                 ForEach(viewModel.flowingItems) { item in
-                    MaEnhancedFlowingBubble(
-                        item: item,
-                        screenHeight: geometry.size.height,
-                        onTap: { viewModel.selectItem(item) }
-                    )
-                    .position(
-                        x: geometry.size.width / 2 + item.horizontalOffset,
-                        y: item.currentY
-                    )
+                    Group {
+                        if item.isDurationEvent {
+                            // Duration events (sleep, long tasks) as vertical bars
+                            if item.isSleepEvent {
+                                MaSleepEventBar(
+                                    item: item,
+                                    startY: item.currentY,
+                                    endY: item.endY
+                                )
+                                .position(
+                                    x: geometry.size.width / 2 + 80, // Offset to the right of timeline
+                                    y: item.currentY + (item.endY - item.currentY) / 2
+                                )
+                                .onTapGesture { viewModel.selectItem(item) }
+                            } else {
+                                MaDurationEventBar(
+                                    item: item,
+                                    startY: item.currentY,
+                                    endY: item.endY,
+                                    screenWidth: geometry.size.width
+                                )
+                                .position(
+                                    x: geometry.size.width / 2 + 80, // Offset to the right of timeline
+                                    y: item.currentY + (item.endY - item.currentY) / 2
+                                )
+                                .onTapGesture { viewModel.selectItem(item) }
+                            }
+                        } else {
+                            // Regular items as bubbles
+                            MaEnhancedFlowingBubble(
+                                item: item,
+                                screenHeight: geometry.size.height,
+                                onTap: { viewModel.selectItem(item) }
+                            )
+                            .position(
+                                x: geometry.size.width / 2 + item.horizontalOffset,
+                                y: item.currentY
+                            )
+                        }
+                    }
                     .transition(.asymmetric(
                         insertion: .modifier(
                             active: BubbleEntranceModifier(isActive: true),
@@ -58,14 +160,28 @@ struct MaFlowingTimelineView: View {
                     ))
                 }
 
-                // Current time indicator with breathing animation
-                MaEnhancedTimeIndicator()
-                    .position(x: geometry.size.width / 2, y: geometry.size.height * 0.7)
+                // Time indicator - shows scrubbed time when scrubbing
+                MaScrubTimeIndicator(
+                    displayTime: viewModel.displayTime,
+                    isScrubbing: viewModel.isScrubbing,
+                    scrubOffset: viewModel.scrubOffset
+                )
+                .position(x: geometry.size.width / 2, y: geometry.size.height * 0.7)
 
-                // Piled up tasks at bottom with friendly presentation
-                VStack(spacing: 0) {
+                // Piled up tasks and recently completed at bottom
+                VStack(spacing: MaSpacing.md) {
                     Spacer()
 
+                    // Recently completed items (visible for 15 minutes)
+                    if !viewModel.recentlyCompletedItems.isEmpty {
+                        MaRecentlyCompletedSection(items: viewModel.recentlyCompletedItems)
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .bottom).combined(with: .opacity),
+                                removal: .opacity
+                            ))
+                    }
+
+                    // Piled up tasks
                     if !viewModel.piledUpItems.isEmpty {
                         MaEnhancedTaskPile(
                             items: viewModel.piledUpItems,
@@ -85,13 +201,33 @@ struct MaFlowingTimelineView: View {
                         )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
+                    // Subtle empty state when no items - shows at bottom of timeline
+                    else if viewModel.flowingItems.isEmpty && viewModel.recentlyCompletedItems.isEmpty {
+                        MaSubtleEmptyState()
+                            .transition(.opacity)
+                    }
                 }
                 .padding(.bottom, MaSpacing.lg)
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.recentlyCompletedItems.count)
 
                 // Top header with flowing time display
                 VStack {
-                    MaEnhancedFlowingHeader(currentTime: viewModel.currentTime)
+                    MaScrubFlowingHeader(
+                        displayTime: viewModel.displayTime,
+                        isScrubbing: viewModel.isScrubbing,
+                        onTapReset: { viewModel.resetToCurrentTime() }
+                    )
                     Spacer()
+                }
+
+                // Scrub hint overlay when not scrubbing
+                if !viewModel.isScrubbing {
+                    VStack {
+                        Spacer()
+                        MaScrubHint()
+                            .padding(.bottom, 120)
+                    }
+                    .allowsHitTesting(false)
                 }
 
                 // Completion celebration overlay
@@ -99,7 +235,48 @@ struct MaFlowingTimelineView: View {
                     MaFlowingCompletionCelebration(position: completedItemPosition)
                         .allowsHitTesting(false)
                 }
+                } // End of else block for main content
+
+                // Error banner for background refresh failures
+                if viewModel.showErrorBanner, let error = viewModel.error {
+                    VStack {
+                        MaErrorBanner(
+                            error: error,
+                            onDismiss: { viewModel.dismissError() },
+                            onRetry: { viewModel.retry() }
+                        )
+                        .padding(.horizontal, MaSpacing.md)
+                        .padding(.top, 100)
+                        Spacer()
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .animation(.spring(response: 0.3), value: viewModel.showErrorBanner)
+                }
+
+                // Offline banner at top
+                if !networkMonitor.isConnected {
+                    VStack {
+                        MaOfflineBanner()
+                        Spacer()
+                    }
+                }
             }
+            // Time scrubbing gesture
+            .gesture(
+                DragGesture()
+                    .updating($scrubDragOffset) { value, state, _ in
+                        state = value.translation.height
+                    }
+                    .onChanged { value in
+                        let delta = value.translation.height - lastDragValue
+                        viewModel.scrubTime(delta: delta)
+                        lastDragValue = value.translation.height
+                    }
+                    .onEnded { _ in
+                        lastDragValue = 0
+                        viewModel.endScrubbing()
+                    }
+            )
         }
         .sheet(item: $viewModel.selectedItem) { item in
             MaFlowingItemDetailSheet(
@@ -109,6 +286,11 @@ struct MaFlowingTimelineView: View {
                 onSkip: { viewModel.skipItem(item) }
             )
         }
+        .toast(
+            isPresented: $viewModel.showToast,
+            message: viewModel.toastMessage ?? "",
+            style: viewModel.toastStyle
+        )
         .onAppear {
             viewModel.startFlowing()
         }
@@ -303,7 +485,139 @@ struct FlowingParticle: Identifiable {
     let speed: CGFloat
 }
 
-// MARK: - Enhanced Time Indicator
+// MARK: - Scrub Time Indicator
+
+struct MaScrubTimeIndicator: View {
+    let displayTime: Date
+    let isScrubbing: Bool
+    let scrubOffset: TimeInterval
+
+    @State private var breathePhase: CGFloat = 0
+    @State private var innerGlow: CGFloat = 0
+
+    private var timeString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: displayTime)
+    }
+
+    private var offsetLabel: String {
+        if scrubOffset == 0 {
+            return "now"
+        } else if scrubOffset > 0 {
+            let hours = Int(scrubOffset / 3600)
+            let minutes = Int((scrubOffset.truncatingRemainder(dividingBy: 3600)) / 60)
+            if hours > 0 {
+                return "+\(hours)h \(minutes)m"
+            }
+            return "+\(minutes)m"
+        } else {
+            let hours = Int(-scrubOffset / 3600)
+            let minutes = Int((-scrubOffset.truncatingRemainder(dividingBy: 3600)) / 60)
+            if hours > 0 {
+                return "-\(hours)h \(minutes)m"
+            }
+            return "-\(minutes)m"
+        }
+    }
+
+    private var indicatorColor: Color {
+        if isScrubbing {
+            return MaColors.postpone // Amber when scrubbing
+        }
+        return MaColors.primaryLight
+    }
+
+    var body: some View {
+        ZStack {
+            // Outer breathing ring
+            Circle()
+                .stroke(
+                    indicatorColor.opacity(0.2),
+                    lineWidth: 2
+                )
+                .frame(width: 40 + breathePhase * 8, height: 40 + breathePhase * 8)
+                .opacity(1.0 - breathePhase * 0.5)
+
+            // Middle glow - larger when scrubbing
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            indicatorColor.opacity(isScrubbing ? 0.5 : 0.3),
+                            indicatorColor.opacity(0.1),
+                            Color.clear
+                        ],
+                        center: .center,
+                        startRadius: 5,
+                        endRadius: isScrubbing ? 35 : 25
+                    )
+                )
+                .frame(width: isScrubbing ? 70 : 50, height: isScrubbing ? 70 : 50)
+                .scaleEffect(1 + innerGlow * 0.1)
+
+            // Inner dot with subtle pulse
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color.white,
+                            indicatorColor
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 8
+                    )
+                )
+                .frame(width: isScrubbing ? 18 : 14, height: isScrubbing ? 18 : 14)
+                .shadow(color: indicatorColor.opacity(0.5), radius: isScrubbing ? 6 : 4)
+
+            // Time/offset label
+            HStack(spacing: 4) {
+                if isScrubbing {
+                    // Show time when scrubbing
+                    Text(timeString)
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white)
+                        .monospacedDigit()
+
+                    Text("•")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.5))
+
+                    Text(offsetLabel)
+                        .font(MaTypography.caption)
+                        .foregroundStyle(.white.opacity(0.7))
+                } else {
+                    Text("now")
+                        .font(MaTypography.caption)
+                        .foregroundStyle(MaColors.textSecondary)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .fill(isScrubbing ? indicatorColor.opacity(0.9) : Color.clear)
+            )
+            .offset(x: isScrubbing ? 70 : 45)
+            .opacity(0.7 + innerGlow * 0.3)
+        }
+        .animation(.spring(response: 0.3), value: isScrubbing)
+        .onAppear {
+            // Slow breathing animation
+            withAnimation(.easeInOut(duration: 4).repeatForever(autoreverses: true)) {
+                breathePhase = 1
+            }
+            // Subtle inner glow
+            withAnimation(.easeInOut(duration: 2).repeatForever(autoreverses: true)) {
+                innerGlow = 1
+            }
+        }
+    }
+}
+
+// MARK: - Enhanced Time Indicator (Legacy - kept for compatibility)
 
 struct MaEnhancedTimeIndicator: View {
     @State private var breathePhase: CGFloat = 0
@@ -373,7 +687,212 @@ struct MaEnhancedTimeIndicator: View {
     }
 }
 
-// MARK: - Enhanced Flowing Header
+// MARK: - Scrub Flowing Header
+
+struct MaScrubFlowingHeader: View {
+    let displayTime: Date
+    let isScrubbing: Bool
+    let onTapReset: () -> Void
+
+    @Environment(\.colorScheme) var colorScheme
+    @State private var colonOpacity: Double = 1
+
+    // Determine if we need light text based on time of day
+    private var needsLightText: Bool {
+        let hour = Calendar.current.component(.hour, from: displayTime)
+        // Dark backgrounds: night (0-5), dusk (19-21), late night (21-24)
+        return hour < 6 || hour >= 19
+    }
+
+    private var textColor: Color {
+        needsLightText ? .white : MaColors.textPrimary
+    }
+
+    private var secondaryTextColor: Color {
+        needsLightText ? .white.opacity(0.7) : MaColors.textSecondary
+    }
+
+    private var scrubIndicatorColor: Color {
+        isScrubbing ? MaColors.postpone : Color.clear
+    }
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: MaSpacing.xxs) {
+                // Time with breathing colon
+                HStack(spacing: 0) {
+                    Text(hourString)
+                        .font(.system(size: 48, weight: .ultraLight, design: .rounded))
+                        .foregroundStyle(textColor)
+                        .monospacedDigit()
+
+                    Text(":")
+                        .font(.system(size: 48, weight: .ultraLight, design: .rounded))
+                        .foregroundStyle(textColor.opacity(colonOpacity))
+
+                    Text(minuteString)
+                        .font(.system(size: 48, weight: .ultraLight, design: .rounded))
+                        .foregroundStyle(textColor)
+                        .monospacedDigit()
+                }
+
+                // Date or scrubbing indicator
+                HStack(spacing: MaSpacing.xs) {
+                    Text(dateString)
+                        .font(MaTypography.bodyMedium)
+                        .foregroundStyle(secondaryTextColor)
+
+                    if isScrubbing {
+                        // Scrubbing indicator badge
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.up.arrow.down")
+                                .font(.caption)
+                            Text("Scrubbing")
+                                .font(MaTypography.caption)
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule()
+                                .fill(MaColors.postpone)
+                        )
+                        .transition(.scale.combined(with: .opacity))
+                    }
+                }
+            }
+
+            Spacer()
+
+            // Reset button when scrubbing, otherwise breathing leaf
+            if isScrubbing {
+                Button(action: onTapReset) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.counterclockwise")
+                        Text("Now")
+                    }
+                    .font(MaTypography.labelSmall)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(MaColors.primaryLight)
+                    )
+                }
+                .transition(.scale.combined(with: .opacity))
+            } else {
+                MaBreathingLeaf()
+            }
+        }
+        .padding(.horizontal, MaSpacing.lg)
+        .padding(.top, MaSpacing.lg)
+        .background(
+            // Subtle gradient for readability, adapts to time
+            LinearGradient(
+                colors: [
+                    (needsLightText ? Color.black : Color.white).opacity(0.15),
+                    Color.clear
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 150)
+            .ignoresSafeArea()
+        )
+        .animation(.spring(response: 0.3), value: isScrubbing)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1).repeatForever(autoreverses: true)) {
+                colonOpacity = 0.3
+            }
+        }
+    }
+
+    private var hourString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH"
+        return formatter.string(from: displayTime)
+    }
+
+    private var minuteString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "mm"
+        return formatter.string(from: displayTime)
+    }
+
+    private var dateString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMMM d"
+        return formatter.string(from: displayTime)
+    }
+}
+
+// MARK: - Scrub Hint
+
+struct MaScrubHint: View {
+    @State private var opacity: Double = 0.5
+    @State private var offset: CGFloat = 0
+
+    var body: some View {
+        HStack(spacing: MaSpacing.xs) {
+            Image(systemName: "hand.draw")
+                .font(.caption)
+            Text("Swipe to scroll through time")
+                .font(MaTypography.caption)
+        }
+        .foregroundStyle(MaColors.textTertiary)
+        .opacity(opacity)
+        .offset(y: offset)
+        .onAppear {
+            // Gentle pulsing animation
+            withAnimation(.easeInOut(duration: 2).repeatForever(autoreverses: true)) {
+                opacity = 0.3
+                offset = -3
+            }
+        }
+    }
+}
+
+// MARK: - Subtle Empty State (shows within timeline)
+
+/// A subtle empty state that appears at the bottom of the timeline when no items are scheduled
+/// Unlike MaEmptyStateView, this doesn't replace the timeline - it's part of it
+struct MaSubtleEmptyState: View {
+    @State private var breathePhase: CGFloat = 0
+
+    var body: some View {
+        VStack(spacing: MaSpacing.md) {
+            // Gentle animated circle
+            ZStack {
+                Circle()
+                    .fill(MaColors.completeSoft.opacity(0.5))
+                    .frame(width: 60 + breathePhase * 5, height: 60 + breathePhase * 5)
+
+                Image(systemName: "leaf")
+                    .font(.system(size: 24))
+                    .foregroundStyle(MaColors.complete.opacity(0.7))
+            }
+
+            VStack(spacing: MaSpacing.xxs) {
+                Text("All clear")
+                    .font(MaTypography.labelMedium)
+                    .foregroundStyle(MaColors.textSecondary)
+
+                Text("Enjoy the moment")
+                    .font(MaTypography.caption)
+                    .foregroundStyle(MaColors.textTertiary)
+            }
+        }
+        .padding(.vertical, MaSpacing.lg)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 3).repeatForever(autoreverses: true)) {
+                breathePhase = 1
+            }
+        }
+    }
+}
+
+// MARK: - Enhanced Flowing Header (Legacy)
 
 struct MaEnhancedFlowingHeader: View {
     let currentTime: Date
@@ -498,6 +1017,327 @@ struct MaBreathingLeaf: View {
     }
 }
 
+// MARK: - Duration Event Bar (Sleep & Long Events)
+
+struct MaDurationEventBar: View {
+    let item: FlowingItem
+    let startY: CGFloat
+    let endY: CGFloat
+    let screenWidth: CGFloat
+
+    @State private var shimmerPhase: CGFloat = 0
+    @State private var glowPulse: CGFloat = 0
+
+    private var barColor: Color {
+        if item.isSleepEvent {
+            return Color(hex: "#5C6BC0") // Indigo for sleep
+        }
+        return item.color
+    }
+
+    private var barHeight: CGFloat {
+        max(abs(endY - startY), 60) // Minimum height of 60
+    }
+
+    private var iconName: String {
+        if item.isSleepEvent {
+            return "moon.zzz.fill"
+        }
+        return item.timelineItem.icon ?? "clock.fill"
+    }
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            // Glowing bar background
+            RoundedRectangle(cornerRadius: 16)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            barColor.opacity(0.15),
+                            barColor.opacity(0.25),
+                            barColor.opacity(0.15)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: 52, height: barHeight)
+                .overlay(
+                    // Animated shimmer
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0),
+                                    Color.white.opacity(0.15),
+                                    Color.white.opacity(0)
+                                ],
+                                startPoint: UnitPoint(x: 0.5, y: shimmerPhase - 0.3),
+                                endPoint: UnitPoint(x: 0.5, y: shimmerPhase + 0.3)
+                            )
+                        )
+                )
+                .overlay(
+                    // Border with gradient
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    barColor.opacity(0.6),
+                                    barColor.opacity(0.3),
+                                    barColor.opacity(0.6)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 2
+                        )
+                )
+                .shadow(color: barColor.opacity(0.3), radius: 8 + glowPulse * 4, y: 0)
+
+            // Top content - Icon and title
+            VStack(spacing: 4) {
+                // Icon circle
+                ZStack {
+                    Circle()
+                        .fill(barColor.opacity(0.3))
+                        .frame(width: 36, height: 36)
+                        .blur(radius: 4)
+
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [barColor, barColor.opacity(0.7)],
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: 14
+                            )
+                        )
+                        .frame(width: 28, height: 28)
+
+                    MaIconView(
+                        icon: iconName,
+                        fallback: "clock.fill",
+                        size: 14,
+                        color: .white
+                    )
+                }
+                .padding(.top, 8)
+
+                // Title - rotated for vertical reading
+                if barHeight > 120 {
+                    Text(item.title)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(MaColors.textPrimary)
+                        .lineLimit(1)
+                        .frame(width: barHeight - 80)
+                        .rotationEffect(.degrees(-90))
+                        .fixedSize()
+                        .offset(y: (barHeight - 80) / 2 - 10)
+                }
+            }
+
+            // Duration label at bottom
+            VStack {
+                Spacer()
+
+                Text(item.durationText)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(barColor)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(
+                        Capsule()
+                            .fill(MaColors.backgroundSecondary.opacity(0.9))
+                    )
+                    .padding(.bottom, 8)
+            }
+            .frame(height: barHeight)
+
+            // Start time indicator at top
+            if let startTime = item.scheduledTime {
+                HStack(spacing: 2) {
+                    Text(formatTime(startTime))
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundStyle(MaColors.textSecondary)
+                }
+                .offset(x: -40, y: 12)
+            }
+
+            // End time indicator at bottom
+            if let endTime = item.endTime {
+                HStack(spacing: 2) {
+                    Text(formatTime(endTime))
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundStyle(MaColors.textSecondary)
+                }
+                .offset(x: -40, y: barHeight - 12)
+            }
+        }
+        .opacity(item.opacity)
+        .onAppear {
+            // Slow shimmer animation
+            withAnimation(.linear(duration: 4).repeatForever(autoreverses: false)) {
+                shimmerPhase = 1.5
+            }
+            // Gentle glow pulse
+            withAnimation(.easeInOut(duration: 3).repeatForever(autoreverses: true)) {
+                glowPulse = 1
+            }
+        }
+    }
+
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Sleep Event Special Bar
+
+struct MaSleepEventBar: View {
+    let item: FlowingItem
+    let startY: CGFloat
+    let endY: CGFloat
+
+    @State private var starTwinkle: [CGFloat] = Array(repeating: 0, count: 5)
+    @State private var moonGlow: CGFloat = 0
+
+    private var barHeight: CGFloat {
+        max(abs(endY - startY), 80)
+    }
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            // Night sky gradient background
+            RoundedRectangle(cornerRadius: 20)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(hex: "#1a237e").opacity(0.4), // Deep indigo
+                            Color(hex: "#311b92").opacity(0.3), // Deep purple
+                            Color(hex: "#4a148c").opacity(0.25) // Purple
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: 60, height: barHeight)
+                .overlay(
+                    // Stars
+                    ZStack {
+                        ForEach(0..<5, id: \.self) { i in
+                            Image(systemName: "sparkle")
+                                .font(.system(size: 6 + CGFloat(i % 3) * 2))
+                                .foregroundStyle(.white.opacity(0.4 + starTwinkle[i] * 0.4))
+                                .offset(
+                                    x: CGFloat.random(in: -20...20),
+                                    y: CGFloat(i) * (barHeight / 6) - barHeight / 3
+                                )
+                        }
+                    }
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    Color(hex: "#5C6BC0").opacity(0.6),
+                                    Color(hex: "#7986CB").opacity(0.4),
+                                    Color(hex: "#5C6BC0").opacity(0.6)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 2
+                        )
+                )
+                .shadow(color: Color(hex: "#5C6BC0").opacity(0.4), radius: 10 + moonGlow * 5, y: 0)
+
+            // Moon and Zzz icon
+            VStack(spacing: 6) {
+                ZStack {
+                    // Moon glow
+                    Circle()
+                        .fill(Color(hex: "#FFE082").opacity(0.3))
+                        .frame(width: 40, height: 40)
+                        .blur(radius: 8)
+                        .scaleEffect(1 + moonGlow * 0.2)
+
+                    // Moon
+                    Image(systemName: "moon.zzz.fill")
+                        .font(.system(size: 24))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color(hex: "#FFE082"), Color(hex: "#FFC107")],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+                .padding(.top, 12)
+
+                // Sleep label
+                Text("Sleep")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.9))
+            }
+
+            // Duration at bottom
+            VStack {
+                Spacer()
+
+                Text(item.durationText)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color(hex: "#B39DDB"))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(Color(hex: "#1a237e").opacity(0.8))
+                    )
+                    .padding(.bottom, 10)
+            }
+            .frame(height: barHeight)
+
+            // Time labels
+            if let startTime = item.scheduledTime {
+                Text(formatTime(startTime))
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Color(hex: "#B39DDB").opacity(0.8))
+                    .offset(x: -45, y: 10)
+            }
+
+            if let endTime = item.endTime {
+                Text(formatTime(endTime))
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Color(hex: "#B39DDB").opacity(0.8))
+                    .offset(x: -45, y: barHeight - 10)
+            }
+        }
+        .opacity(item.opacity)
+        .onAppear {
+            // Star twinkle animations
+            for i in 0..<5 {
+                withAnimation(.easeInOut(duration: Double.random(in: 1.5...3)).repeatForever(autoreverses: true).delay(Double(i) * 0.3)) {
+                    starTwinkle[i] = 1
+                }
+            }
+            // Moon glow
+            withAnimation(.easeInOut(duration: 4).repeatForever(autoreverses: true)) {
+                moonGlow = 1
+            }
+        }
+    }
+
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+}
+
 // MARK: - Enhanced Flowing Event Bubble
 
 struct MaEnhancedFlowingBubble: View {
@@ -596,12 +1436,34 @@ struct MaEnhancedFlowingBubble: View {
         .buttonStyle(MaBubbleButtonStyle())
         .opacity(item.opacity)
         .scaleEffect(item.scale)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint("Double tap to view details")
+        .accessibilityAddTraits(.isButton)
         .onAppear {
             // Occasional shimmer
             withAnimation(.linear(duration: 3).delay(Double.random(in: 0...5))) {
                 shimmer = 1.5
             }
         }
+    }
+
+    private var accessibilityLabel: String {
+        var parts: [String] = [item.title]
+
+        if item.isOverdue {
+            parts.insert("Overdue:", at: 0)
+        }
+
+        if let time = item.scheduledTime {
+            parts.append("at \(formatTime(time))")
+        }
+
+        if item.streak > 0 {
+            parts.append("\(item.streak) day streak")
+        }
+
+        return parts.joined(separator: ", ")
     }
 
     private func formatTime(_ date: Date) -> String {
@@ -676,9 +1538,12 @@ struct MaFlowingItemDetailSheet: View {
                                     .fill(item.color.opacity(0.15))
                                     .frame(width: 80, height: 80)
 
-                                Image(systemName: item.timelineItem.icon ?? "circle")
-                                    .font(.system(size: 36))
-                                    .foregroundStyle(item.color)
+                                MaIconView(
+                                    icon: item.timelineItem.icon,
+                                    fallback: "circle",
+                                    size: 36,
+                                    color: item.color
+                                )
                             }
 
                             // Title
@@ -898,6 +1763,165 @@ struct MaEnhancedTaskPile: View {
         }
         .padding(.horizontal, MaSpacing.lg)
         .animation(.spring(response: 0.4), value: expandedPile)
+    }
+}
+
+// MARK: - Recently Completed Section
+
+struct MaRecentlyCompletedSection: View {
+    let items: [CompletedItem]
+    @Environment(\.colorScheme) var colorScheme
+
+    var body: some View {
+        VStack(spacing: MaSpacing.sm) {
+            // Header
+            HStack {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(MaColors.complete)
+                Text("Recently Completed")
+                    .font(MaTypography.labelSmall)
+                    .foregroundStyle(MaColors.textSecondary)
+                Spacer()
+            }
+            .padding(.horizontal, MaSpacing.sm)
+
+            // Completed items
+            ForEach(items) { item in
+                MaCompletedItemRow(item: item)
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.8).combined(with: .opacity).combined(with: .move(edge: .top)),
+                        removal: .scale(scale: 0.9).combined(with: .opacity)
+                    ))
+            }
+        }
+        .padding(MaSpacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: MaRadius.lg)
+                .fill(MaColors.completeSoft.opacity(0.3))
+                .overlay(
+                    RoundedRectangle(cornerRadius: MaRadius.lg)
+                        .stroke(MaColors.complete.opacity(0.2), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, MaSpacing.lg)
+    }
+}
+
+// MARK: - Completed Item Row
+
+struct MaCompletedItemRow: View {
+    let item: CompletedItem
+    @State private var showXPDetails = false
+    @State private var celebrationScale: CGFloat = 1.0
+
+    var body: some View {
+        HStack(spacing: MaSpacing.sm) {
+            // Icon with checkmark overlay
+            ZStack {
+                Circle()
+                    .fill(item.color.opacity(0.2))
+                    .frame(width: 32, height: 32)
+
+                // Show item icon or checkmark
+                if let icon = item.icon, !icon.isEmpty {
+                    MaIconView(
+                        icon: icon,
+                        fallback: "checkmark",
+                        size: 16,
+                        color: item.color
+                    )
+                } else {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(item.color)
+                }
+            }
+            .scaleEffect(celebrationScale)
+
+            // Title and time
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .font(MaTypography.bodyMedium)
+                    .foregroundStyle(MaColors.textPrimary)
+                    .strikethrough(true, color: MaColors.textTertiary.opacity(0.5))
+
+                Text(item.timeSinceCompletion)
+                    .font(MaTypography.caption)
+                    .foregroundStyle(MaColors.textTertiary)
+            }
+
+            Spacer()
+
+            // XP and Streak badges
+            VStack(alignment: .trailing, spacing: 4) {
+                // XP Badge
+                if item.totalXP > 0 {
+                    HStack(spacing: 2) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 10))
+                        Text("+\(item.totalXP) XP")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundStyle(MaColors.xp)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(MaColors.xpSoft.opacity(0.5))
+                    )
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.3)) {
+                            showXPDetails.toggle()
+                        }
+                    }
+                }
+
+                // Streak badge
+                if item.newStreak > 0 {
+                    HStack(spacing: 2) {
+                        Image(systemName: item.newStreak >= 7 ? "flame.fill" : "flame")
+                            .font(.system(size: 10))
+                        Text("\(item.newStreak)")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                    }
+                    .foregroundStyle(MaColors.streak)
+                }
+            }
+        }
+        .padding(MaSpacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: MaRadius.md)
+                .fill(MaColors.backgroundSecondary)
+        )
+        .onAppear {
+            // Celebration animation on appear
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+                celebrationScale = 1.1
+            }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7).delay(0.15)) {
+                celebrationScale = 1.0
+            }
+        }
+
+        // XP Details popover
+        if showXPDetails && !item.xpGranted.isEmpty {
+            HStack(spacing: MaSpacing.xs) {
+                ForEach(Array(item.xpGranted.keys.sorted()), id: \.self) { stat in
+                    if let xp = item.xpGranted[stat] {
+                        Text("\(stat): +\(xp)")
+                            .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            .foregroundStyle(MaColors.textSecondary)
+                    }
+                }
+            }
+            .padding(.horizontal, MaSpacing.sm)
+            .padding(.vertical, MaSpacing.xxs)
+            .background(
+                Capsule()
+                    .fill(MaColors.backgroundTertiary)
+            )
+            .transition(.scale.combined(with: .opacity))
+        }
     }
 }
 
@@ -1322,8 +2346,10 @@ struct CelebrationParticle: Identifiable {
 
 struct FlowingItem: Identifiable {
     let id: String
+    let code: String  // API identifier for complete/postpone/skip actions
     let title: String
     let scheduledTime: Date?
+    let endTime: Date?
     let color: Color
     let streak: Int
     let estimatedMinutes: Int
@@ -1331,6 +2357,7 @@ struct FlowingItem: Identifiable {
 
     // Animation properties
     var currentY: CGFloat = 0
+    var endY: CGFloat = 0 // For duration events
     var opacity: Double = 1.0
     var scale: CGFloat = 1.0
     var horizontalOffset: CGFloat = 0
@@ -1338,6 +2365,41 @@ struct FlowingItem: Identifiable {
 
     // Enhanced animation state
     var entranceProgress: CGFloat = 0
+
+    /// Whether this is a duration event (has significant length)
+    var isDurationEvent: Bool {
+        estimatedMinutes >= 30
+    }
+
+    /// Whether this is a sleep event
+    var isSleepEvent: Bool {
+        let category = timelineItem.category?.lowercased() ?? ""
+        let title = timelineItem.title.lowercased()
+        return category == "sleep" || title.contains("sleep") || title.contains("bed")
+    }
+
+    /// Whether this item is overdue
+    var isOverdue: Bool {
+        timelineItem.isOverdue
+    }
+
+    /// Duration in hours for display
+    var durationHours: Double {
+        Double(estimatedMinutes) / 60.0
+    }
+
+    /// Formatted duration text
+    var durationText: String {
+        if estimatedMinutes >= 60 {
+            let hours = estimatedMinutes / 60
+            let mins = estimatedMinutes % 60
+            if mins == 0 {
+                return "\(hours)h"
+            }
+            return "\(hours)h \(mins)m"
+        }
+        return "\(estimatedMinutes)m"
+    }
 
     var waitingTimeText: String {
         guard let arrived = arrivedAt else { return "" }
@@ -1353,24 +2415,82 @@ struct FlowingItem: Identifiable {
     }
 }
 
+// MARK: - Completed Item Model
+
+struct CompletedItem: Identifiable {
+    let id: String
+    let title: String
+    let completedAt: Date
+    let xpGranted: [String: Int]
+    let newStreak: Int
+    let color: Color
+    let icon: String?
+
+    var totalXP: Int {
+        xpGranted.values.reduce(0, +)
+    }
+
+    var timeSinceCompletion: String {
+        let minutes = Int(-completedAt.timeIntervalSinceNow / 60)
+        if minutes < 1 { return "Just now" }
+        if minutes == 1 { return "1 min ago" }
+        return "\(minutes) mins ago"
+    }
+
+    var isExpired: Bool {
+        -completedAt.timeIntervalSinceNow >= 15 * 60 // 15 minutes
+    }
+}
+
 // MARK: - Flowing Timeline ViewModel
+
+import os.log
+
+private let timelineLogger = Logger(subsystem: "com.lifeops.app", category: "Timeline")
 
 @MainActor
 class FlowingTimelineViewModel: ObservableObject {
     @Published var flowingItems: [FlowingItem] = []
     @Published var piledUpItems: [FlowingItem] = []
+    @Published var recentlyCompletedItems: [CompletedItem] = []  // Items completed in last 15 mins
     @Published var currentTime = Date()
     @Published var selectedItem: FlowingItem?
+
+    // Loading and error state
+    @Published var isLoading = false
+    @Published var error: APIError?
+    @Published var showErrorBanner = false
+    @Published var toastMessage: String?
+    @Published var toastStyle: MaToast.Style = .info
+    @Published var showToast = false
+
+    // Time scrubbing state
+    @Published var displayTime = Date()
+    @Published var isScrubbing = false
+    @Published var scrubOffset: TimeInterval = 0 // Offset in seconds from current time
+
+    // Weather integration (simplified - can be replaced with WeatherKit later)
+    @Published var currentWeather: WeatherCondition = .clear
 
     private var displayLink: CADisplayLink?
     private var lastUpdateTime: CFTimeInterval = 0
     private var flowTimer: Timer?
+    private var scrubResetTimer: Timer?
     private let apiClient = APIClient.shared
+    private var hasLoadedOnce = false
 
     // Screen dimensions
     private var screenHeight: CGFloat = UIScreen.main.bounds.height
     private let nowLineY: CGFloat = 0.7 // 70% down the screen
     private let topY: CGFloat = 100
+
+    // Time scrubbing constants
+    private let maxScrubOffset: TimeInterval = 12 * 3600 // 12 hours forward
+    private let minScrubOffset: TimeInterval = -12 * 3600 // 12 hours backward
+    private let scrubResetDelay: TimeInterval = 3.0 // 3 seconds to reset
+
+    // Recently completed display duration
+    private let recentlyCompletedDuration: TimeInterval = 15 * 60 // 15 minutes
 
     func startFlowing() {
         // Use CADisplayLink for smooth 60fps animations
@@ -1395,30 +2515,133 @@ class FlowingTimelineViewModel: ObservableObject {
         displayLink = nil
         flowTimer?.invalidate()
         flowTimer = nil
+        scrubResetTimer?.invalidate()
+        scrubResetTimer = nil
     }
 
     @objc private func updateFrame(_ displayLink: CADisplayLink) {
         let currentFrameTime = displayLink.timestamp
 
-        // Update time display once per second
+        // Update time display once per second (only when not scrubbing)
         if currentFrameTime - lastUpdateTime >= 1.0 {
             currentTime = Date()
+            if !isScrubbing {
+                displayTime = currentTime
+            }
             lastUpdateTime = currentFrameTime
+
+            // Weather can be integrated with WeatherKit later
+            // For now, weather stays as set (default .clear)
+
+            // Clean up expired recently completed items (older than 15 minutes)
+            cleanupExpiredCompletedItems()
         }
 
         // Smooth position updates every frame
         updateItemPositions()
     }
 
+    /// Remove recently completed items that are older than 15 minutes
+    private func cleanupExpiredCompletedItems() {
+        let expiredItems = recentlyCompletedItems.filter { $0.isExpired }
+        if !expiredItems.isEmpty {
+            withAnimation(.easeOut(duration: 0.3)) {
+                recentlyCompletedItems.removeAll { $0.isExpired }
+            }
+        }
+    }
+
+    // MARK: - Time Scrubbing
+
+    /// Handle time scrubbing gesture
+    /// - Parameter delta: The vertical drag delta (positive/down = future, negative/up = past)
+    func scrubTime(delta: CGFloat) {
+        isScrubbing = true
+
+        // Convert pixel delta to time offset
+        // Swipe down (positive delta) = move forward in time (future)
+        // Swipe up (negative delta) = move backward in time (past)
+        // 100 pixels = 1 hour
+        let timeChange = TimeInterval(delta / 100.0 * 3600)
+        scrubOffset = max(minScrubOffset, min(maxScrubOffset, scrubOffset + timeChange))
+
+        // Update display time
+        displayTime = currentTime.addingTimeInterval(scrubOffset)
+
+        // Reset the auto-reset timer
+        resetScrubTimer()
+    }
+
+    /// End scrubbing gesture
+    func endScrubbing() {
+        // Start the reset timer
+        resetScrubTimer()
+    }
+
+    /// Reset to current time
+    func resetToCurrentTime() {
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+            isScrubbing = false
+            scrubOffset = 0
+            displayTime = currentTime
+        }
+    }
+
+    private func resetScrubTimer() {
+        scrubResetTimer?.invalidate()
+        scrubResetTimer = Timer.scheduledTimer(withTimeInterval: scrubResetDelay, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.resetToCurrentTime()
+            }
+        }
+    }
+
+    /// Get items visible at the current display time
+    var visibleItems: [FlowingItem] {
+        // Filter items based on display time
+        // Show items scheduled within the visible time window
+        let windowStart = displayTime.addingTimeInterval(-2 * 3600) // 2 hours before
+        let windowEnd = displayTime.addingTimeInterval(2 * 3600) // 2 hours after
+
+        return flowingItems.filter { item in
+            guard let scheduledTime = item.scheduledTime else { return true }
+            return scheduledTime >= windowStart && scheduledTime <= windowEnd
+        }
+    }
+
+    /// Get items that are "piled up" at the display time
+    var visiblePiledItems: [FlowingItem] {
+        // Show items that would be due at the display time
+        return piledUpItems.filter { item in
+            guard let scheduledTime = item.scheduledTime else { return true }
+            return scheduledTime <= displayTime
+        }
+    }
+
     func loadTimeline() async {
+        // Show loading only on first load
+        if !hasLoadedOnce {
+            isLoading = true
+        }
+
         do {
-            let feed = try await apiClient.getTimeline(hours: 2)
+            // Fetch 24 hours of data to support time scrubbing through the day
+            let feed = try await apiClient.getTimeline(hours: 24)
 
             let now = Date()
             var newFlowingItems: [FlowingItem] = []
             var newPiledItems: [FlowingItem] = []
 
             for item in feed.items {
+                // Skip items that are already completed, skipped, or postponed
+                // These should not appear in the flowing timeline or pile
+                switch item.status {
+                case .completed, .skipped, .postponed:
+                    continue
+                case .pending, .active, .upcoming:
+                    break
+                }
+
                 let flowingItem = createFlowingItem(from: item)
 
                 if let scheduledTime = flowingItem.scheduledTime {
@@ -1438,33 +2661,92 @@ class FlowingTimelineViewModel: ObservableObject {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                 flowingItems = newFlowingItems
                 piledUpItems = newPiledItems
+                error = nil
+                showErrorBanner = false
             }
 
+            hasLoadedOnce = true
             updateItemPositions()
             checkForReminders()
 
+            timelineLogger.info("Timeline loaded: \(newFlowingItems.count) flowing, \(newPiledItems.count) piled")
+
+        } catch let apiError as APIError {
+            timelineLogger.error("Failed to load timeline: \(apiError.errorDescription ?? "unknown")")
+            error = apiError
+            // Only show full error view if we haven't loaded anything yet
+            if !hasLoadedOnce {
+                // Error will be shown in the view
+            } else {
+                // Show banner for background refresh failures
+                showErrorBanner = true
+            }
         } catch {
-            print("Failed to load timeline: \(error)")
+            timelineLogger.error("Failed to load timeline: \(error.localizedDescription)")
+            self.error = .unknown(error)
         }
+
+        isLoading = false
+    }
+
+    /// Retry loading after an error
+    func retry() {
+        Task {
+            await loadTimeline()
+        }
+    }
+
+    /// Dismiss error banner
+    func dismissError() {
+        withAnimation {
+            showErrorBanner = false
+        }
+    }
+
+    /// Show a toast message
+    func showToastMessage(_ message: String, style: MaToast.Style = .info) {
+        toastMessage = message
+        toastStyle = style
+        showToast = true
     }
 
     private func createFlowingItem(from item: TimelineFeedItem) -> FlowingItem {
         let color = colorForItem(item)
         let scheduledTime = parseTime(item.scheduledTime)
+        let endTime = parseTime(item.windowEnd)
+
+        // Calculate duration from scheduled time to end time, or use default
+        var estimatedMinutes = 15
+        if let start = scheduledTime, let end = endTime {
+            let duration = end.timeIntervalSince(start)
+            if duration > 0 {
+                estimatedMinutes = Int(duration / 60)
+            }
+        }
 
         return FlowingItem(
             id: item.id,
+            code: item.code,  // Use code for API calls
             title: item.title,
             scheduledTime: scheduledTime,
+            endTime: endTime,
             color: color,
             streak: item.currentStreak,
-            estimatedMinutes: 15, // Default estimate
+            estimatedMinutes: estimatedMinutes,
             timelineItem: item
         )
     }
 
     private func colorForItem(_ item: TimelineFeedItem) -> Color {
-        switch item.category?.lowercased() {
+        let category = item.category?.lowercased() ?? ""
+        let title = item.title.lowercased()
+
+        // Special color for sleep
+        if category == "sleep" || title.contains("sleep") || title.contains("bed") {
+            return Color(hex: "#5C6BC0") // Indigo for sleep
+        }
+
+        switch category {
         case "habit":
             return MaColors.primaryLight
         case "routine":
@@ -1503,29 +2785,61 @@ class FlowingTimelineViewModel: ObservableObject {
 
     private func updateItemPositions() {
         let now = Date()
+        // Use displayTime for positioning when scrubbing, otherwise use actual time
+        let referenceTime = isScrubbing ? displayTime : now
         let oneHour: TimeInterval = 3600
         let nowY = screenHeight * nowLineY
 
+        // Item height for stacking (approximate bubble height + spacing)
+        let itemHeight: CGFloat = 50
+
+        // Group items by their scheduled time to handle stacking
+        var timeSlots: [TimeInterval: [Int]] = [:]
+
+        for i in flowingItems.indices {
+            guard let scheduledTime = flowingItems[i].scheduledTime else { continue }
+            let timeKey = scheduledTime.timeIntervalSince1970
+            if timeSlots[timeKey] == nil {
+                timeSlots[timeKey] = []
+            }
+            timeSlots[timeKey]?.append(i)
+        }
+
+        // Track indices to remove (items that should move to pile)
+        var indicesToRemove: [Int] = []
+
+        // When scrubbing, don't move items to pile - just reposition them
         for i in flowingItems.indices {
             guard let scheduledTime = flowingItems[i].scheduledTime else { continue }
 
-            let timeUntil = scheduledTime.timeIntervalSince(now)
+            let timeUntil = scheduledTime.timeIntervalSince(referenceTime)
 
-            if timeUntil <= 0 {
-                // Move to pile with animation
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    var piledItem = flowingItems[i]
-                    piledItem.arrivedAt = now
-                    piledUpItems.append(piledItem)
-                }
-
-                flowingItems.remove(at: i)
+            // Only move to pile when NOT scrubbing and time has passed
+            if !isScrubbing && timeUntil <= 0 {
+                indicesToRemove.append(i)
                 continue
             }
 
-            // Smooth interpolation for position
-            let progress = 1 - min(timeUntil / oneHour, 1.0)
-            let targetY = topY + (nowY - topY) * CGFloat(progress)
+            // Calculate position based on time until scheduled
+            // Items more than 1 hour away are at the top, items at scheduled time are at nowY
+            let progress: Double
+            if timeUntil <= 0 {
+                // Past the scheduled time - show below the now line
+                progress = 1.0 + min(abs(timeUntil) / oneHour, 0.3) // Slightly past nowY
+            } else {
+                progress = 1 - min(timeUntil / oneHour, 1.0)
+            }
+
+            var targetY = topY + (nowY - topY) * CGFloat(progress)
+
+            // Stack items with the same scheduled time vertically
+            let timeKey = scheduledTime.timeIntervalSince1970
+            if let sameTimeIndices = timeSlots[timeKey], sameTimeIndices.count > 1 {
+                if let stackIndex = sameTimeIndices.firstIndex(of: i) {
+                    // Offset each item in the stack
+                    targetY += CGFloat(stackIndex) * itemHeight
+                }
+            }
 
             // Smooth easing for position updates
             let currentY = flowingItems[i].currentY
@@ -1533,30 +2847,72 @@ class FlowingTimelineViewModel: ObservableObject {
 
             flowingItems[i].currentY = newY
 
-            // Smooth opacity fade-in
-            let targetOpacity = min(progress * 2.5, 1.0)
+            // Calculate endY for duration events
+            if flowingItems[i].isDurationEvent, let endTime = flowingItems[i].endTime {
+                let endTimeUntil = endTime.timeIntervalSince(referenceTime)
+                let endProgress: Double
+                if endTimeUntil <= 0 {
+                    endProgress = 1.0 + min(abs(endTimeUntil) / oneHour, 0.3)
+                } else {
+                    endProgress = 1 - min(endTimeUntil / oneHour, 1.0)
+                }
+                let targetEndY = topY + (nowY - topY) * CGFloat(endProgress)
+                let currentEndY = flowingItems[i].endY
+                flowingItems[i].endY = currentEndY + (targetEndY - currentEndY) * 0.1
+            }
+
+            // Smooth opacity - show items within 2 hours of display time
+            let hoursAway = abs(timeUntil) / 3600
+            let targetOpacity = hoursAway <= 2 ? min((2 - hoursAway) / 1.5, 1.0) : 0.0
             flowingItems[i].opacity = flowingItems[i].opacity + (targetOpacity - flowingItems[i].opacity) * 0.1
 
             // Smooth scale
-            let targetScale = 0.85 + (0.15 * CGFloat(progress))
+            let targetScale = 0.85 + (0.15 * CGFloat(max(0, min(progress, 1.0))))
             flowingItems[i].scale = flowingItems[i].scale + (targetScale - flowingItems[i].scale) * 0.1
 
-            // Gentle floating offset with sine wave
+            // Gentle floating offset with sine wave - reduced for stacked items and duration events
             let floatOffset = sin(now.timeIntervalSince1970 * 0.5 + Double(i)) * 3
+            let sameTimeCount = timeSlots[timeKey]?.count ?? 1
+            // Reduce horizontal offset when stacked so items stay aligned
+            // Duration events don't float - they stay fixed
+            let isDuration = flowingItems[i].isDurationEvent
+            let horizontalReduction = isDuration ? 0.0 : (sameTimeCount > 1 ? 0.3 : 1.0)
             let offsetDirection: CGFloat = i.isMultiple(of: 2) ? 1 : -1
-            let baseOffset = offsetDirection * (70 - 40 * CGFloat(progress))
-            flowingItems[i].horizontalOffset = baseOffset + CGFloat(floatOffset)
+            let baseOffset = offsetDirection * (70 - 40 * CGFloat(max(0, min(progress, 1.0)))) * CGFloat(horizontalReduction)
+            flowingItems[i].horizontalOffset = isDuration ? 0 : baseOffset + CGFloat(floatOffset)
+        }
+
+        // Remove items that should move to pile (in reverse order to preserve indices)
+        for i in indicesToRemove.reversed() {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                var piledItem = flowingItems[i]
+                piledItem.arrivedAt = now
+                piledUpItems.append(piledItem)
+            }
+            flowingItems.remove(at: i)
         }
     }
+
+    /// Track items that have already triggered a reminder to avoid spam
+    private var remindedItemIds: Set<String> = []
 
     private func checkForReminders() {
         for item in piledUpItems where item.needsReminder {
-            scheduleReminder(for: item)
+            // Only trigger reminder once per item
+            if !remindedItemIds.contains(item.id) {
+                scheduleReminder(for: item)
+                remindedItemIds.insert(item.id)
+            }
         }
+
+        // Clean up reminded IDs for items no longer in pile
+        let currentPileIds = Set(piledUpItems.map { $0.id })
+        remindedItemIds = remindedItemIds.intersection(currentPileIds)
     }
 
     private func scheduleReminder(for item: FlowingItem) {
-        print("Reminder needed for: \(item.title)")
+        timelineLogger.debug("Reminder needed for: \(item.title)")
+        // TODO: Implement actual notification scheduling
     }
 
     func selectItem(_ item: FlowingItem) {
@@ -1568,10 +2924,43 @@ class FlowingTimelineViewModel: ObservableObject {
     func completeItem(_ item: FlowingItem) {
         Task {
             do {
-                _ = try await apiClient.completeItem(code: item.id)
+                let response = try await apiClient.completeItem(code: item.code)
+                timelineLogger.info("Completed \(item.title): XP=\(response.xpGranted), streak=\(response.newStreak)")
+
+                // Add to recently completed items
+                let completedItem = CompletedItem(
+                    id: item.id,
+                    title: item.title,
+                    completedAt: Date(),
+                    xpGranted: response.xpGranted,
+                    newStreak: response.newStreak,
+                    color: item.color,
+                    icon: item.timelineItem.icon
+                )
+
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    recentlyCompletedItems.insert(completedItem, at: 0)
+                }
+
+                // Show success toast
+                if response.totalXP > 0 {
+                    showToastMessage("+\(response.totalXP) XP", style: .success)
+                }
+
                 await loadTimeline()
+            } catch let apiError as APIError {
+                // Handle specific cases like "already completed"
+                if case .serverError(400, let message) = apiError, message.contains("already completed") {
+                    timelineLogger.info("\(item.title) was already completed today")
+                    showToastMessage("Already completed today", style: .info)
+                    await loadTimeline() // Refresh to show updated state
+                } else {
+                    timelineLogger.error("Failed to complete \(item.title): \(apiError.errorDescription ?? "unknown")")
+                    showToastMessage(apiError.errorDescription ?? "Failed to complete", style: .error)
+                }
             } catch {
-                print("Failed to complete: \(error)")
+                timelineLogger.error("Failed to complete \(item.title): \(error.localizedDescription)")
+                showToastMessage("Failed to complete task", style: .error)
             }
         }
     }
@@ -1579,10 +2968,16 @@ class FlowingTimelineViewModel: ObservableObject {
     func postponeItem(_ item: FlowingItem) {
         Task {
             do {
-                _ = try await apiClient.postponeItem(code: item.id, target: .afternoon)
+                let response = try await apiClient.postponeItem(code: item.code, target: .afternoon)
+                timelineLogger.info("Postponed \(item.title): \(response.message)")
+                showToastMessage("Postponed to later", style: .info)
                 await loadTimeline()
+            } catch let apiError as APIError {
+                timelineLogger.error("Failed to postpone \(item.title): \(apiError.errorDescription ?? "unknown")")
+                showToastMessage(apiError.errorDescription ?? "Failed to postpone", style: .error)
             } catch {
-                print("Failed to postpone: \(error)")
+                timelineLogger.error("Failed to postpone \(item.title): \(error.localizedDescription)")
+                showToastMessage("Failed to postpone task", style: .error)
             }
         }
     }
@@ -1590,10 +2985,16 @@ class FlowingTimelineViewModel: ObservableObject {
     func skipItem(_ item: FlowingItem) {
         Task {
             do {
-                try await apiClient.skipItem(code: item.id)
+                try await apiClient.skipItem(code: item.code)
+                timelineLogger.info("Skipped \(item.title)")
+                showToastMessage("Task skipped", style: .info)
                 await loadTimeline()
+            } catch let apiError as APIError {
+                timelineLogger.error("Failed to skip \(item.title): \(apiError.errorDescription ?? "unknown")")
+                showToastMessage(apiError.errorDescription ?? "Failed to skip", style: .error)
             } catch {
-                print("Failed to skip: \(error)")
+                timelineLogger.error("Failed to skip \(item.title): \(error.localizedDescription)")
+                showToastMessage("Failed to skip task", style: .error)
             }
         }
     }
@@ -1602,9 +3003,24 @@ class FlowingTimelineViewModel: ObservableObject {
         let quickTasks = piledUpItems.filter { $0.estimatedMinutes <= 5 }
 
         Task {
+            var totalXP = 0
+            var completedCount = 0
+
             for task in quickTasks {
-                try? await apiClient.completeItem(code: task.id)
+                do {
+                    let response = try await apiClient.completeItem(code: task.code)
+                    totalXP += response.totalXP
+                    completedCount += 1
+                    timelineLogger.info("Completed \(task.title): XP=\(response.totalXP)")
+                } catch {
+                    timelineLogger.error("Failed to complete \(task.title): \(error.localizedDescription)")
+                }
             }
+
+            if completedCount > 0 {
+                showToastMessage("\(completedCount) tasks done! +\(totalXP) XP", style: .success)
+            }
+
             await loadTimeline()
         }
     }
